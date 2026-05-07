@@ -1,0 +1,13 @@
+#:schema https://developers.openai.com/codex/config-schema.json
+
+# Проектная конфигурация Codex загружается только если проект отмечен как trusted.
+# Увеличенный лимит нужен, чтобы корневой `AGENTS.md` и будущие вложенные инструкции не обрезались слишком рано.
+project_doc_max_bytes = 65536
+
+# Репозиторные навыки Codex находятся в `.agents/skills/` и обнаруживаются автоматически.
+
+[mcp_servers.openaiDeveloperDocs]
+url = "https://developers.openai.com/mcp"
+enabled = true
+required = false
+tool_timeout_sec = 60

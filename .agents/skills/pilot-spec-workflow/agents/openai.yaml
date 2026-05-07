@@ -1,0 +1,7 @@
+interface:
+  display_name: "Спецификации Pilot Tracker"
+  short_description: "Сверка задач со спецификациями проекта"
+  default_prompt: "Используй $pilot-spec-workflow, чтобы выполнить задачу через бизнес-контекст и релевантные спецификации."
+
+policy:
+  allow_implicit_invocation: true
