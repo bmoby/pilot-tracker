@@ -22,5 +22,10 @@ export default async function HomePage() {
     );
   }
 
-  return <StudentsPage initialStudents={result.value.students} />;
+  return (
+    <StudentsPage
+      initialStudents={result.value.students}
+      latestUpdateRun={result.value.latestUpdateRun}
+    />
+  );
 }

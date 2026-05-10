@@ -187,6 +187,11 @@ const appFileKeys = Object.keys(APP_FILE_DEFINITIONS) as AppFileKey[];
 function validateAppDataConsistency(data: AppData): void {
   const studentIds = new Set(data.studentsFile.students.map((student) => student.id));
   const projectIds = new Set(data.projectsFile.projects.map((project) => project.id));
+  const updateRunIds = new Set(data.updateRunsFile.updateRuns.map((run) => run.id));
+  const updateEventIds = new Set(data.updateEventsFile.updateEvents.map((event) => event.id));
+  const reviewStatusIds = new Set(
+    data.reviewStatusesFile.reviewStatuses.map((status) => status.id),
+  );
 
   if (studentIds.size !== data.studentsFile.students.length) {
     throw createStorageError(
@@ -202,6 +207,27 @@ function validateAppDataConsistency(data: AppData): void {
     );
   }
 
+  if (updateRunIds.size !== data.updateRunsFile.updateRuns.length) {
+    throw createStorageError(
+      "storage_consistency_error",
+      "В запусках обновления найдены повторяющиеся идентификаторы.",
+    );
+  }
+
+  if (updateEventIds.size !== data.updateEventsFile.updateEvents.length) {
+    throw createStorageError(
+      "storage_consistency_error",
+      "В событиях обновления найдены повторяющиеся идентификаторы.",
+    );
+  }
+
+  if (reviewStatusIds.size !== data.reviewStatusesFile.reviewStatuses.length) {
+    throw createStorageError(
+      "storage_consistency_error",
+      "В статусах проверки найдены повторяющиеся идентификаторы.",
+    );
+  }
+
   for (const student of data.studentsFile.students) {
     const project = data.projectsFile.projects.find((item) => item.id === student.projectId);
 
@@ -214,6 +240,43 @@ function validateAppDataConsistency(data: AppData): void {
 
     if (project.studentId !== student.id) {
       throw createStorageError("storage_consistency_error", "Связь студента и проекта нарушена.");
+    }
+  }
+
+  for (const event of data.updateEventsFile.updateEvents) {
+    if (!updateRunIds.has(event.runId)) {
+      throw createStorageError(
+        "storage_consistency_error",
+        "Событие обновления ссылается на отсутствующий запуск.",
+      );
+    }
+
+    const student = data.studentsFile.students.find((item) => item.id === event.studentId);
+    const project = data.projectsFile.projects.find((item) => item.id === event.projectId);
+
+    if (student === undefined || project === undefined || project.studentId !== student.id) {
+      throw createStorageError(
+        "storage_consistency_error",
+        "Событие обновления ссылается на отсутствующего студента или проект.",
+      );
+    }
+  }
+
+  for (const status of data.reviewStatusesFile.reviewStatuses) {
+    const event = data.updateEventsFile.updateEvents.find((item) => item.id === status.updateEventId);
+
+    if (event === undefined) {
+      throw createStorageError(
+        "storage_consistency_error",
+        "Статус проверки ссылается на отсутствующее событие обновления.",
+      );
+    }
+
+    if (event.studentId !== status.studentId || event.projectId !== status.projectId) {
+      throw createStorageError(
+        "storage_consistency_error",
+        "Связь статуса проверки и события обновления нарушена.",
+      );
     }
   }
 }

@@ -1,13 +1,17 @@
 "use client";
 
 import { useMemo, useState, useTransition, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  ArrowRight,
   CheckCircle2,
+  Clock3,
   GitBranch,
   Pencil,
   Plus,
+  RefreshCw,
   Trash2,
   UserRound,
   X,
@@ -17,12 +21,15 @@ import {
   deleteStudentAction,
   type StudentActionState,
   updateStudentAction,
+  updateAllProjectsAction,
 } from "./students-actions";
+import type { UpdateRunListItem } from "@/application/project-updates";
 import type { StudentListItem } from "@/application/students";
 import { AppShell } from "./app-shell";
 
 type StudentsPageProps = {
   initialStudents: StudentListItem[];
+  latestUpdateRun: UpdateRunListItem | null;
 };
 
 type FormMode =
@@ -34,7 +41,7 @@ type FormMode =
       student: StudentListItem;
     };
 
-export function StudentsPage({ initialStudents }: StudentsPageProps) {
+export function StudentsPage({ initialStudents, latestUpdateRun }: StudentsPageProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [formMode, setFormMode] = useState<FormMode | null>(null);
@@ -89,6 +96,15 @@ export function StudentsPage({ initialStudents }: StudentsPageProps) {
     });
   }
 
+  function updateProjects() {
+    startTransition(async () => {
+      const result = await updateAllProjectsAction();
+      setFormError(null);
+      setMessage(result);
+      router.refresh();
+    });
+  }
+
   return (
     <AppShell activeSection="students">
       <section className="grid gap-6">
@@ -97,19 +113,30 @@ export function StudentsPage({ initialStudents }: StudentsPageProps) {
             <p className="text-sm font-medium text-teal-700">Студенты</p>
             <h1 className="mt-1 text-3xl font-semibold text-slate-950">Рабочая когорта</h1>
           </div>
-          <button
-            type="button"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 disabled:opacity-60"
-            onClick={() => {
-              setFormMode({ type: "create" });
-              setMessage(null);
-              setFormError(null);
-            }}
-            disabled={isPending}
-          >
-            <Plus size={18} aria-hidden="true" />
-            Добавить студента
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm hover:border-slate-300 disabled:opacity-60"
+              onClick={updateProjects}
+              disabled={isPending || initialStudents.length === 0}
+            >
+              <RefreshCw size={18} aria-hidden="true" />
+              {isPending ? "Обновление..." : "Обновить проекты"}
+            </button>
+            <button
+              type="button"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 disabled:opacity-60"
+              onClick={() => {
+                setFormMode({ type: "create" });
+                setMessage(null);
+                setFormError(null);
+              }}
+              disabled={isPending}
+            >
+              <Plus size={18} aria-hidden="true" />
+              Добавить студента
+            </button>
+          </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-3">
@@ -133,6 +160,8 @@ export function StudentsPage({ initialStudents }: StudentsPageProps) {
             <p>{message.message}</p>
           </div>
         ) : null}
+
+        {latestUpdateRun ? <UpdateRunSummary run={latestUpdateRun} /> : null}
 
         {initialStudents.length === 0 ? (
           <section className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
@@ -201,6 +230,44 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
+function UpdateRunSummary({ run }: { run: UpdateRunListItem }) {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
+            <Clock3 size={16} aria-hidden="true" />
+            Последнее обновление
+          </div>
+          <p className="mt-2 text-lg font-semibold text-slate-950">
+            {formatDateTime(run.finishedAt ?? run.startedAt)}
+          </p>
+          <p className="mt-1 text-sm text-slate-600">
+            Статус запуска: {run.status === "completed_with_errors" ? "завершено с ошибками" : "завершено"}
+          </p>
+        </div>
+        <div className="grid gap-2 text-sm text-slate-700 sm:grid-cols-3 lg:grid-cols-6">
+          <SummaryPill label="Первая загрузка" value={run.summary.projectsFirstLoaded} />
+          <SummaryPill label="Новые изменения" value={run.summary.projectsWithChanges} />
+          <SummaryPill label="Коммиты" value={run.summary.newCommitsTotal} />
+          <SummaryPill label="Без изменений" value={run.summary.projectsWithoutChanges} />
+          <SummaryPill label="Ошибки" value={run.summary.errorsTotal} />
+          <SummaryPill label="Без ссылки" value={run.summary.studentsWithoutRepository} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SummaryPill({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
 function StudentRow({
   student,
   disabled,
@@ -229,10 +296,35 @@ function StudentRow({
               label={student.repositoryUrl ?? "GitHub-ссылка не указана"}
             />
             <InfoLine label={student.localPath ?? "Локальная копия еще не создана"} />
+            <InfoLine label={student.lastUpdatedAt ? `Обновлено: ${formatDateTime(student.lastUpdatedAt)}` : "Обновлений еще не было"} />
+            <InfoLine label={student.lastKnownCommit ? `Коммит: ${shortCommit(student.lastKnownCommit)}` : "Коммит еще не зафиксирован"} />
           </div>
+
+          {student.lastUpdateResultLabel ? (
+            <p className="mt-3 text-sm text-slate-700">
+              Последнее событие: {student.lastUpdateResultLabel}
+              {student.lastNewCommitsCount !== null
+                ? `, новых коммитов: ${student.lastNewCommitsCount}`
+                : ""}
+            </p>
+          ) : null}
+
+          {student.lastError ? (
+            <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+              {student.lastError}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 gap-2">
+          <Link
+            href={`/students/${student.studentId}`}
+            className="inline-flex size-10 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:border-slate-300"
+            title="Открыть студента"
+          >
+            <ArrowRight size={17} aria-hidden="true" />
+            <span className="sr-only">Открыть студента</span>
+          </Link>
           <button
             type="button"
             className="inline-flex size-10 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:border-slate-300 disabled:opacity-60"
@@ -274,6 +366,17 @@ function StatusBadge({ status }: { status: string }) {
       {status}
     </span>
   );
+}
+
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat("ru-RU", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function shortCommit(value: string): string {
+  return value.slice(0, 7);
 }
 
 function StudentFormModal({

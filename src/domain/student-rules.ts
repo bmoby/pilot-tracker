@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
 import type { Project, ProjectStatus, Student } from "./schemas";
+import { createPrefixedId } from "./ids";
 
 export type StudentInput = {
   displayName: string;
@@ -121,8 +121,4 @@ export function getProjectStatusForRepositoryUrl(repositoryUrl: string | null): 
 
 export function createUtcTimestamp(): string {
   return new Date().toISOString();
-}
-
-function createPrefixedId(prefix: string): `${string}_${string}` {
-  return `${prefix}_${randomUUID()}`;
 }

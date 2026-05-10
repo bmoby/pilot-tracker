@@ -57,6 +57,116 @@ export const projectStatusLabels: Record<ProjectStatus, string> = {
   repository_unavailable: "репозиторий недоступен",
 };
 
+export const updateRunScopeSchema = z.enum(["all_projects", "single_project"]);
+export type UpdateRunScope = z.infer<typeof updateRunScopeSchema>;
+
+export const updateRunStatusSchema = z.enum([
+  "running",
+  "completed",
+  "completed_with_errors",
+  "failed",
+]);
+export type UpdateRunStatus = z.infer<typeof updateRunStatusSchema>;
+
+export const updateRunSummarySchema = z.object({
+  studentsTotal: z.number().int().nonnegative(),
+  projectsAttempted: z.number().int().nonnegative(),
+  projectsFirstLoaded: z.number().int().nonnegative(),
+  projectsWithChanges: z.number().int().nonnegative(),
+  newCommitsTotal: z.number().int().nonnegative(),
+  projectsWithoutChanges: z.number().int().nonnegative(),
+  errorsTotal: z.number().int().nonnegative(),
+  studentsWithoutRepository: z.number().int().nonnegative(),
+});
+export type UpdateRunSummary = z.infer<typeof updateRunSummarySchema>;
+
+export const updateRunSchema = z.object({
+  id: updateRunIdSchema,
+  scope: updateRunScopeSchema,
+  studentId: studentIdSchema.nullable(),
+  projectId: projectIdSchema.nullable(),
+  status: updateRunStatusSchema,
+  startedAt: isoUtcDateSchema,
+  finishedAt: isoUtcDateSchema.nullable(),
+  summary: updateRunSummarySchema,
+  error: z.string().nullable(),
+});
+export type UpdateRun = z.infer<typeof updateRunSchema>;
+
+export const updateEventStatusSchema = z.enum(["running", "completed", "failed", "interrupted"]);
+export type UpdateEventStatus = z.infer<typeof updateEventStatusSchema>;
+
+export const updateEventResultSchema = z.enum([
+  "skipped_no_repository",
+  "cloned",
+  "updated_with_changes",
+  "updated_no_changes",
+  "error",
+]);
+export type UpdateEventResult = z.infer<typeof updateEventResultSchema>;
+
+export const updateEventResultLabels: Record<UpdateEventResult, string> = {
+  skipped_no_repository: "проект не подключен",
+  cloned: "первая загрузка проекта",
+  updated_with_changes: "найдены новые изменения",
+  updated_no_changes: "новых изменений нет",
+  error: "обновление завершилось ошибкой",
+};
+
+export const updateEventSchema = z.object({
+  id: updateEventIdSchema,
+  runId: updateRunIdSchema,
+  studentId: studentIdSchema,
+  projectId: projectIdSchema,
+  status: updateEventStatusSchema,
+  startedAt: isoUtcDateSchema,
+  finishedAt: isoUtcDateSchema.nullable(),
+  occurredAt: isoUtcDateSchema.nullable(),
+  repositoryUrlSnapshot: z.string().nullable(),
+  projectLocalPathSnapshot: z.string().nullable(),
+  branch: z.literal("main"),
+  previousCommit: z.string().nullable(),
+  newCommit: z.string().nullable(),
+  newCommitsCount: z.number().int().nonnegative().nullable(),
+  hasNewChanges: z.boolean(),
+  result: updateEventResultSchema.nullable(),
+  error: z.string().nullable(),
+  analysisBoundaryRecordedAt: isoUtcDateSchema.nullable(),
+  createdAt: isoUtcDateSchema,
+  updatedAt: isoUtcDateSchema,
+});
+export type UpdateEvent = z.infer<typeof updateEventSchema>;
+
+export const reviewStatusValueSchema = z.enum([
+  "not_reviewed",
+  "in_review",
+  "reviewed",
+  "needs_work",
+  "needs_recheck",
+  "skipped",
+]);
+export type ReviewStatusValue = z.infer<typeof reviewStatusValueSchema>;
+
+export const reviewStatusLabels: Record<ReviewStatusValue, string> = {
+  not_reviewed: "не проверено",
+  in_review: "проверяется",
+  reviewed: "проверено",
+  needs_work: "требует доработки",
+  needs_recheck: "требует повторной проверки",
+  skipped: "пропущено",
+};
+
+export const reviewStatusSchema = z.object({
+  id: reviewStatusIdSchema,
+  studentId: studentIdSchema,
+  projectId: projectIdSchema,
+  updateEventId: updateEventIdSchema,
+  status: reviewStatusValueSchema,
+  createdAt: isoUtcDateSchema,
+  updatedAt: isoUtcDateSchema,
+});
+export type ReviewStatus = z.infer<typeof reviewStatusSchema>;
+
 export const aiDescriptionSchema = z.object({
   status: z.enum(["missing", "running", "ready", "error"]),
   summary: z.string().nullable(),
@@ -146,14 +256,14 @@ export type ProjectsFile = z.infer<typeof projectsFileSchema>;
 
 export const updateRunsFileSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
-  updateRuns: z.array(z.record(z.string(), z.unknown())),
+  updateRuns: z.array(updateRunSchema),
 });
 
 export type UpdateRunsFile = z.infer<typeof updateRunsFileSchema>;
 
 export const updateEventsFileSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
-  updateEvents: z.array(z.record(z.string(), z.unknown())),
+  updateEvents: z.array(updateEventSchema),
 });
 
 export type UpdateEventsFile = z.infer<typeof updateEventsFileSchema>;
@@ -167,7 +277,7 @@ export type CommentsFile = z.infer<typeof commentsFileSchema>;
 
 export const reviewStatusesFileSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
-  reviewStatuses: z.array(z.record(z.string(), z.unknown())),
+  reviewStatuses: z.array(reviewStatusSchema),
 });
 
 export type ReviewStatusesFile = z.infer<typeof reviewStatusesFileSchema>;
