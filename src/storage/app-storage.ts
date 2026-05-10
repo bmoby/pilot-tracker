@@ -1,0 +1,230 @@
+import { resolve } from "node:path";
+import type { z } from "zod";
+import {
+  aiReportsFileSchema,
+  commentsFileSchema,
+  type AppData,
+  projectsFileSchema,
+  reviewStatusesFileSchema,
+  settingsFileSchema,
+  studentsFileSchema,
+  updateEventsFileSchema,
+  updateRunsFileSchema,
+} from "@/domain/schemas";
+import {
+  createInitialAiReportsFile,
+  createInitialCommentsFile,
+  createInitialProjectsFile,
+  createInitialReviewStatusesFile,
+  createInitialSettingsFile,
+  createInitialStudentsFile,
+  createInitialUpdateEventsFile,
+  createInitialUpdateRunsFile,
+} from "./initial-data";
+import { ensureDirectory, pathExists, readJsonFile, safeWriteJsonFile } from "./file-system";
+import { createStorageError } from "./storage-error";
+
+type AppFileKey = keyof AppData;
+
+type AppFileDefinition<T> = {
+  fileName: string;
+  schema: z.ZodType<T>;
+  createInitialData: () => T;
+};
+
+const APP_FILE_DEFINITIONS = {
+  studentsFile: {
+    fileName: "students.json",
+    schema: studentsFileSchema,
+    createInitialData: createInitialStudentsFile,
+  },
+  projectsFile: {
+    fileName: "projects.json",
+    schema: projectsFileSchema,
+    createInitialData: createInitialProjectsFile,
+  },
+  updateRunsFile: {
+    fileName: "update-runs.json",
+    schema: updateRunsFileSchema,
+    createInitialData: createInitialUpdateRunsFile,
+  },
+  updateEventsFile: {
+    fileName: "update-events.json",
+    schema: updateEventsFileSchema,
+    createInitialData: createInitialUpdateEventsFile,
+  },
+  commentsFile: {
+    fileName: "comments.json",
+    schema: commentsFileSchema,
+    createInitialData: createInitialCommentsFile,
+  },
+  reviewStatusesFile: {
+    fileName: "review-statuses.json",
+    schema: reviewStatusesFileSchema,
+    createInitialData: createInitialReviewStatusesFile,
+  },
+  aiReportsFile: {
+    fileName: "ai-reports.json",
+    schema: aiReportsFileSchema,
+    createInitialData: createInitialAiReportsFile,
+  },
+  settingsFile: {
+    fileName: "settings.json",
+    schema: settingsFileSchema,
+    createInitialData: createInitialSettingsFile,
+  },
+} satisfies {
+  [Key in AppFileKey]: AppFileDefinition<AppData[Key]>;
+};
+
+export type AppStorageOptions = {
+  projectRoot?: string;
+  dataRoot?: "data";
+};
+
+export class AppStorage {
+  private readonly projectRoot: string;
+  private readonly dataRootName: "data";
+  private writeQueue: Promise<void> = Promise.resolve();
+
+  constructor(options: AppStorageOptions = {}) {
+    this.projectRoot = options.projectRoot ?? process.cwd();
+    this.dataRootName = options.dataRoot ?? "data";
+  }
+
+  get dataRootPath() {
+    return resolve(this.projectRoot, this.dataRootName);
+  }
+
+  get appDataPath() {
+    return resolve(this.dataRootPath, "app");
+  }
+
+  get repositoriesPath() {
+    return resolve(this.dataRootPath, "repositories");
+  }
+
+  get reviewCopiesPath() {
+    return resolve(this.dataRootPath, "review-copies");
+  }
+
+  get logsPath() {
+    return resolve(this.dataRootPath, "logs");
+  }
+
+  get backupsPath() {
+    return resolve(this.dataRootPath, "backups");
+  }
+
+  async load(): Promise<AppData> {
+    await this.initialize();
+
+    const data: AppData = {
+      studentsFile: await readJsonFile(this.getFilePath("students.json"), studentsFileSchema),
+      projectsFile: await readJsonFile(this.getFilePath("projects.json"), projectsFileSchema),
+      updateRunsFile: await readJsonFile(
+        this.getFilePath("update-runs.json"),
+        updateRunsFileSchema,
+      ),
+      updateEventsFile: await readJsonFile(
+        this.getFilePath("update-events.json"),
+        updateEventsFileSchema,
+      ),
+      commentsFile: await readJsonFile(this.getFilePath("comments.json"), commentsFileSchema),
+      reviewStatusesFile: await readJsonFile(
+        this.getFilePath("review-statuses.json"),
+        reviewStatusesFileSchema,
+      ),
+      aiReportsFile: await readJsonFile(this.getFilePath("ai-reports.json"), aiReportsFileSchema),
+      settingsFile: await readJsonFile(this.getFilePath("settings.json"), settingsFileSchema),
+    };
+    validateAppDataConsistency(data);
+
+    return data;
+  }
+
+  async saveFiles(data: AppData, keys: AppFileKey[]): Promise<void> {
+    const operation = this.writeQueue.then(async () => {
+      for (const key of keys) {
+        const definition = APP_FILE_DEFINITIONS[key];
+        await safeWriteJsonFile(
+          this.getFilePath(definition.fileName),
+          data[key],
+          definition.schema,
+        );
+      }
+    });
+
+    this.writeQueue = operation.catch(() => undefined);
+    return operation;
+  }
+
+  private async initialize(): Promise<void> {
+    await ensureDirectory(this.dataRootPath);
+    await ensureDirectory(this.appDataPath);
+    await ensureDirectory(this.repositoriesPath);
+    await ensureDirectory(this.reviewCopiesPath);
+    await ensureDirectory(this.logsPath);
+    await ensureDirectory(this.backupsPath);
+
+    for (const key of appFileKeys) {
+      const definition = APP_FILE_DEFINITIONS[key];
+      const filePath = this.getFilePath(definition.fileName);
+
+      if (!(await pathExists(filePath))) {
+        await safeWriteJsonFile(filePath, definition.createInitialData(), definition.schema);
+      }
+    }
+  }
+
+  private getFilePath(fileName: string): string {
+    return resolve(this.appDataPath, fileName);
+  }
+}
+
+const appFileKeys = Object.keys(APP_FILE_DEFINITIONS) as AppFileKey[];
+
+function validateAppDataConsistency(data: AppData): void {
+  const studentIds = new Set(data.studentsFile.students.map((student) => student.id));
+  const projectIds = new Set(data.projectsFile.projects.map((project) => project.id));
+
+  if (studentIds.size !== data.studentsFile.students.length) {
+    throw createStorageError(
+      "storage_consistency_error",
+      "В данных студентов найдены повторяющиеся идентификаторы.",
+    );
+  }
+
+  if (projectIds.size !== data.projectsFile.projects.length) {
+    throw createStorageError(
+      "storage_consistency_error",
+      "В данных проектов найдены повторяющиеся идентификаторы.",
+    );
+  }
+
+  for (const student of data.studentsFile.students) {
+    const project = data.projectsFile.projects.find((item) => item.id === student.projectId);
+
+    if (project === undefined) {
+      throw createStorageError(
+        "storage_consistency_error",
+        "Связанный проект студента отсутствует в данных.",
+      );
+    }
+
+    if (project.studentId !== student.id) {
+      throw createStorageError("storage_consistency_error", "Связь студента и проекта нарушена.");
+    }
+  }
+}
+
+let defaultStorage: AppStorage | null = null;
+
+export function getDefaultStorage(): AppStorage {
+  defaultStorage ??= new AppStorage();
+  return defaultStorage;
+}
+
+export function resetDefaultStorageForTests(storage: AppStorage | null): void {
+  defaultStorage = storage;
+}
