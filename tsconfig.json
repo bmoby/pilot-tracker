@@ -38,6 +38,7 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
+    "data",
     "node_modules"
   ]
 }
