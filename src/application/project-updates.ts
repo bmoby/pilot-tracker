@@ -1,6 +1,8 @@
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import type {
   AppData,
+  AiPullRequestContext,
+  AiReport,
   Comment,
   Project,
   ReviewStatus,
@@ -15,7 +17,10 @@ import {
   updateEventResultLabels,
   type UpdateRunSummary,
 } from "@/domain/schemas";
-import { createUtcTimestamp, isGithubRepositoryUrl } from "@/domain/student-rules";
+import {
+  createUtcTimestamp,
+  isGithubRepositoryUrl,
+} from "@/domain/student-rules";
 import {
   applyEventToProject,
   completeUpdateEvent,
@@ -28,8 +33,18 @@ import {
   type GitUpdateError,
   type GitUpdateErrorCategory,
 } from "@/domain/update-rules";
-import { GitCliClient, GitCommandError, type GitProjectClient } from "@/integrations/git";
-import { failure, normalizeUnknownError, success, type AppError, type AppResult } from "@/shared/result";
+import {
+  GitCliClient,
+  GitCommandError,
+  type GitProjectClient,
+} from "@/integrations/git";
+import {
+  failure,
+  normalizeUnknownError,
+  success,
+  type AppError,
+  type AppResult,
+} from "@/shared/result";
 import { AppStorage, getDefaultStorage } from "@/storage/app-storage";
 import { ensureDirectory, pathExists } from "@/storage/file-system";
 import { StorageError } from "@/storage/storage-error";
@@ -52,6 +67,25 @@ export type ReviewCommentListItem = {
   updatedAt: string;
 };
 
+export type AiReportListItem = {
+  id: string;
+  status: AiReport["status"];
+  analysisMode: AiReport["analysisMode"];
+  startedAt: string;
+  finishedAt: string | null;
+  previousCommit: string | null;
+  newCommit: string | null;
+  summary: string | null;
+  importantFiles: string[];
+  changes: string | null;
+  risks: string[];
+  manualReviewQuestions: string[];
+  teacherCommentDraft: string | null;
+  fullText: string | null;
+  pullRequestContext: AiPullRequestContext;
+  error: string | null;
+};
+
 export type UpdateEventListItem = {
   id: string;
   result: UpdateEvent["result"];
@@ -61,6 +95,9 @@ export type UpdateEventListItem = {
   reviewStatusLabel: string;
   commentsCount: number;
   comments: ReviewCommentListItem[];
+  aiReportsCount: number;
+  aiReports: AiReportListItem[];
+  aiAnalysisDisabledReason: string | null;
   startedAt: string;
   finishedAt: string | null;
   occurredAt: string | null;
@@ -129,7 +166,14 @@ export async function updateAllProjects(
         continue;
       }
 
-      const event = await updateProject({ storage, data, git, run, student, project });
+      const event = await updateProject({
+        storage,
+        data,
+        git,
+        run,
+        student,
+        project,
+      });
       events.push(event);
     }
 
@@ -172,7 +216,8 @@ export async function updateSingleProject(
     if (project.repositoryUrl === null) {
       return failure({
         code: "repository_not_connected",
-        message: "Проект не подключен: сначала добавьте GitHub-ссылку студента.",
+        message:
+          "Проект не подключен: сначала добавьте GitHub-ссылку студента.",
       });
     }
 
@@ -189,7 +234,14 @@ export async function updateSingleProject(
     await storage.saveFiles(data, ["updateRunsFile"]);
 
     const git = gitClient ?? createGitClient(data);
-    const event = await updateProject({ storage, data, git, run, student, project });
+    const event = await updateProject({
+      storage,
+      data,
+      git,
+      run,
+      student,
+      project,
+    });
     finishRun(run, [event], 1);
     await storage.saveFiles(data, ["updateRunsFile"]);
 
@@ -255,7 +307,12 @@ async function updateProject({
   project: Project;
 }): Promise<UpdateEvent> {
   const startedAt = createUtcTimestamp();
-  const event = createRunningUpdateEvent({ runId: run.id, student, project, now: startedAt });
+  const event = createRunningUpdateEvent({
+    runId: run.id,
+    student,
+    project,
+    now: startedAt,
+  });
   data.updateEventsFile.updateEvents.push(event);
   project.status = "updating";
   project.updatedAt = startedAt;
@@ -334,7 +391,11 @@ async function updateProject({
 
   const reviewStatus = createInitialReviewStatus(event, finishedAt);
   data.reviewStatusesFile.reviewStatuses.push(reviewStatus);
-  await storage.saveFiles(data, ["projectsFile", "updateEventsFile", "reviewStatusesFile"]);
+  await storage.saveFiles(data, [
+    "projectsFile",
+    "updateEventsFile",
+    "reviewStatusesFile",
+  ]);
 
   return event;
 }
@@ -468,7 +529,10 @@ async function updateExistingProject({
       type: "error",
       error: {
         category: "local_path_missing",
-        message: error instanceof Error ? error.message : "Локальный путь проекта некорректен.",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Локальный путь проекта некорректен.",
       },
     };
   }
@@ -501,7 +565,8 @@ async function updateExistingProject({
         type: "error",
         error: {
           category: "local_repository_dirty",
-          message: "Локальная копия содержит изменения. Автоматическое обновление остановлено.",
+          message:
+            "Локальная копия содержит изменения. Автоматическое обновление остановлено.",
         },
       };
     }
@@ -510,7 +575,9 @@ async function updateExistingProject({
     const originMain = await git.readOriginMain(absolutePath);
     const previousCommit = project.lastKnownCommit;
     const newCommitsCount =
-      previousCommit === null ? null : await countCommitsSafely(git, absolutePath, previousCommit);
+      previousCommit === null
+        ? null
+        : await countCommitsSafely(git, absolutePath, previousCommit);
     await git.resetToOriginMain(absolutePath);
     const newCommit = await git.readHead(absolutePath);
 
@@ -559,7 +626,11 @@ async function countCommitsSafely(
   }
 }
 
-function finishRun(run: UpdateRun, events: UpdateEvent[], studentsTotal: number): void {
+function finishRun(
+  run: UpdateRun,
+  events: UpdateEvent[],
+  studentsTotal: number,
+): void {
   const summary = summarizeUpdateEvents(events, studentsTotal);
   run.summary = summary;
   run.status = getRunStatusFromSummary(summary);
@@ -567,25 +638,41 @@ function finishRun(run: UpdateRun, events: UpdateEvent[], studentsTotal: number)
 }
 
 function findStudent(data: AppData, studentId: string): Student | null {
-  return data.studentsFile.students.find((student) => student.id === studentId) ?? null;
-}
-
-function findProject(data: AppData, projectId: string): Project | null {
-  return data.projectsFile.projects.find((project) => project.id === projectId) ?? null;
-}
-
-function findReviewStatus(data: AppData, eventId: string): ReviewStatus | null {
   return (
-    data.reviewStatusesFile.reviewStatuses.find((status) => status.updateEventId === eventId) ??
+    data.studentsFile.students.find((student) => student.id === studentId) ??
     null
   );
 }
 
-function toStudentDetailsData(data: AppData, student: Student, project: Project): StudentDetailsData {
+function findProject(data: AppData, projectId: string): Project | null {
+  return (
+    data.projectsFile.projects.find((project) => project.id === projectId) ??
+    null
+  );
+}
+
+function findReviewStatus(data: AppData, eventId: string): ReviewStatus | null {
+  return (
+    data.reviewStatusesFile.reviewStatuses.find(
+      (status) => status.updateEventId === eventId,
+    ) ?? null
+  );
+}
+
+function toStudentDetailsData(
+  data: AppData,
+  student: Student,
+  project: Project,
+): StudentDetailsData {
   const events = data.updateEventsFile.updateEvents
-    .filter((event) => event.studentId === student.id && event.projectId === project.id)
+    .filter(
+      (event) =>
+        event.studentId === student.id && event.projectId === project.id,
+    )
     .sort((left, right) =>
-      (right.occurredAt ?? right.startedAt).localeCompare(left.occurredAt ?? left.startedAt),
+      (right.occurredAt ?? right.startedAt).localeCompare(
+        left.occurredAt ?? left.startedAt,
+      ),
     )
     .map((event) => toUpdateEventListItem(data, event));
 
@@ -613,20 +700,32 @@ function toStudentDetailsData(data: AppData, student: Student, project: Project)
   };
 }
 
-export function toUpdateEventListItem(data: AppData, event: UpdateEvent): UpdateEventListItem {
+export function toUpdateEventListItem(
+  data: AppData,
+  event: UpdateEvent,
+): UpdateEventListItem {
   const reviewStatus = findReviewStatus(data, event.id);
   const statusValue = reviewStatus?.status ?? "not_reviewed";
-  const comments = findEventComments(data, event.id).map(toReviewCommentListItem);
+  const comments = findEventComments(data, event.id).map(
+    toReviewCommentListItem,
+  );
+  const aiReports = findEventAiReports(data, event.id).map(toAiReportListItem);
 
   return {
     id: event.id,
     result: event.result,
-    resultLabel: event.result === null ? "обновление выполняется" : updateEventResultLabels[event.result],
+    resultLabel:
+      event.result === null
+        ? "обновление выполняется"
+        : updateEventResultLabels[event.result],
     status: event.status,
     reviewStatus: statusValue,
     reviewStatusLabel: reviewStatusLabels[statusValue],
     commentsCount: comments.length,
     comments,
+    aiReportsCount: aiReports.length,
+    aiReports,
+    aiAnalysisDisabledReason: getAiAnalysisDisabledReason(data, event),
     startedAt: event.startedAt,
     finishedAt: event.finishedAt,
     occurredAt: event.occurredAt,
@@ -639,6 +738,12 @@ export function toUpdateEventListItem(data: AppData, event: UpdateEvent): Update
     hasNewChanges: event.hasNewChanges,
     error: event.error,
   };
+}
+
+function findEventAiReports(data: AppData, eventId: string): AiReport[] {
+  return data.aiReportsFile.aiReports
+    .filter((report) => report.updateEventId === eventId)
+    .sort((left, right) => right.startedAt.localeCompare(left.startedAt));
 }
 
 function findEventComments(data: AppData, eventId: string): Comment[] {
@@ -655,6 +760,51 @@ function toReviewCommentListItem(comment: Comment): ReviewCommentListItem {
     createdAt: comment.createdAt,
     updatedAt: comment.updatedAt,
   };
+}
+
+function toAiReportListItem(report: AiReport): AiReportListItem {
+  return {
+    id: report.id,
+    status: report.status,
+    analysisMode: report.analysisMode,
+    startedAt: report.startedAt,
+    finishedAt: report.finishedAt,
+    previousCommit: report.previousCommit,
+    newCommit: report.newCommit,
+    summary: report.summary,
+    importantFiles: report.importantFiles,
+    changes: report.changes,
+    risks: report.risks,
+    manualReviewQuestions: report.manualReviewQuestions,
+    teacherCommentDraft: report.teacherCommentDraft,
+    fullText: report.fullText,
+    pullRequestContext: report.pullRequestContext,
+    error: report.error,
+  };
+}
+
+function getAiAnalysisDisabledReason(
+  data: AppData,
+  event: UpdateEvent,
+): string | null {
+  if (event.newCommit === null) {
+    return "Нет известного нового коммита для ИИ-анализа.";
+  }
+
+  if (event.projectLocalPathSnapshot === null) {
+    return "Нет локального пути проекта для ИИ-анализа.";
+  }
+
+  const codex = data.settingsFile.settings.tools.codex;
+
+  if (codex.status === "error") {
+    return (
+      codex.message ??
+      "Codex CLI недоступен по последней диагностике окружения."
+    );
+  }
+
+  return null;
 }
 
 export function toUpdateRunListItem(run: UpdateRun): UpdateRunListItem {
@@ -679,20 +829,29 @@ function getProjectRelativePath(project: Project): string {
 
 function resolveDataPath(storage: AppStorage, relativePath: string): string {
   if (isAbsolute(relativePath)) {
-    throw new Error("Локальный путь проекта должен быть относительным к папке data.");
+    throw new Error(
+      "Локальный путь проекта должен быть относительным к папке data.",
+    );
   }
 
   const absolutePath = resolve(storage.dataRootPath, relativePath);
   const relativeToRoot = relative(storage.dataRootPath, absolutePath);
 
-  if (relativeToRoot.startsWith("..") || isAbsolute(relativeToRoot) || relativeToRoot === "") {
+  if (
+    relativeToRoot.startsWith("..") ||
+    isAbsolute(relativeToRoot) ||
+    relativeToRoot === ""
+  ) {
     throw new Error("Локальный путь проекта выходит за пределы папки data.");
   }
 
   return absolutePath;
 }
 
-function normalizeGitError(error: unknown, fallbackCategory: GitUpdateErrorCategory): GitUpdateError {
+function normalizeGitError(
+  error: unknown,
+  fallbackCategory: GitUpdateErrorCategory,
+): GitUpdateError {
   if (isGitUpdateError(error)) {
     return error;
   }
@@ -705,14 +864,17 @@ function normalizeGitError(error: unknown, fallbackCategory: GitUpdateErrorCateg
     };
   }
 
-  const output = `${error.stderr}\n${error.stdout}\n${error.message}`.toLowerCase();
+  const output =
+    `${error.stderr}\n${error.stdout}\n${error.message}`.toLowerCase();
   const category = classifyGitError(output, error.exitCode, fallbackCategory);
   const message = getGitErrorMessage(category);
 
   return {
     category,
     message,
-    technicalDetails: cleanTechnicalDetails(`${error.stderr}\n${error.stdout}\n${error.message}`),
+    technicalDetails: cleanTechnicalDetails(
+      `${error.stderr}\n${error.stdout}\n${error.message}`,
+    ),
     command: [error.command, ...error.args].join(" "),
     exitCode: error.exitCode,
   };
@@ -742,7 +904,10 @@ function classifyGitError(
     return "history_rewritten";
   }
 
-  if (output.includes("remote branch main not found") || output.includes("origin/main")) {
+  if (
+    output.includes("remote branch main not found") ||
+    output.includes("origin/main")
+  ) {
     return "main_branch_missing";
   }
 

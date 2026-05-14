@@ -59,19 +59,51 @@ export type GitReviewCopyClient = {
   isRepository(repositoryPath: string): Promise<boolean>;
   readCurrentBranch(repositoryPath: string): Promise<string>;
   verifyCommit(repositoryPath: string, commit: string): Promise<void>;
-  createDetachedWorktree(repositoryPath: string, reviewPath: string, commit: string): Promise<void>;
+  createDetachedWorktree(
+    repositoryPath: string,
+    reviewPath: string,
+    commit: string,
+  ): Promise<void>;
   removeWorktree(repositoryPath: string, reviewPath: string): Promise<void>;
 };
 
-export class GitCliClient implements GitProjectClient {
+export type GitAnalysisClient = {
+  readCommitLog(
+    repositoryPath: string,
+    previousCommit: string | null,
+    newCommit: string,
+  ): Promise<string>;
+  readDiff(
+    repositoryPath: string,
+    previousCommit: string,
+    newCommit: string,
+  ): Promise<string>;
+  listTrackedFiles(repositoryPath: string): Promise<string>;
+};
+
+export class GitCliClient implements GitProjectClient, GitAnalysisClient {
   constructor(private readonly command = "git") {}
 
-  async cloneRepository(repositoryUrl: string, targetPath: string): Promise<void> {
-    await runGit(this.command, ["clone", "--branch", "main", "--single-branch", repositoryUrl, targetPath]);
+  async cloneRepository(
+    repositoryUrl: string,
+    targetPath: string,
+  ): Promise<void> {
+    await runGit(this.command, [
+      "clone",
+      "--branch",
+      "main",
+      "--single-branch",
+      repositoryUrl,
+      targetPath,
+    ]);
   }
 
   async readHead(repositoryPath: string): Promise<string> {
-    const result = await runGit(this.command, ["rev-parse", "HEAD"], repositoryPath);
+    const result = await runGit(
+      this.command,
+      ["rev-parse", "HEAD"],
+      repositoryPath,
+    );
     return result.stdout.trim();
   }
 
@@ -90,12 +122,20 @@ export class GitCliClient implements GitProjectClient {
   }
 
   async readStatus(repositoryPath: string): Promise<string> {
-    const result = await runGit(this.command, ["status", "--porcelain"], repositoryPath);
+    const result = await runGit(
+      this.command,
+      ["status", "--porcelain"],
+      repositoryPath,
+    );
     return result.stdout;
   }
 
   async fetchMain(repositoryPath: string): Promise<void> {
-    await runGit(this.command, ["fetch", "origin", "main", "--prune"], repositoryPath);
+    await runGit(
+      this.command,
+      ["fetch", "origin", "main", "--prune"],
+      repositoryPath,
+    );
   }
 
   async readOriginMain(repositoryPath: string): Promise<string> {
@@ -107,7 +147,10 @@ export class GitCliClient implements GitProjectClient {
     return result.stdout.trim();
   }
 
-  async countCommits(repositoryPath: string, previousCommit: string): Promise<number> {
+  async countCommits(
+    repositoryPath: string,
+    previousCommit: string,
+  ): Promise<number> {
     const result = await runGit(
       this.command,
       ["rev-list", "--count", `${previousCommit}..origin/main`],
@@ -131,16 +174,28 @@ export class GitCliClient implements GitProjectClient {
   }
 
   async resetToOriginMain(repositoryPath: string): Promise<void> {
-    await runGit(this.command, ["reset", "--hard", "origin/main"], repositoryPath);
+    await runGit(
+      this.command,
+      ["reset", "--hard", "origin/main"],
+      repositoryPath,
+    );
   }
 
   async readCurrentBranch(repositoryPath: string): Promise<string> {
-    const result = await runGit(this.command, ["branch", "--show-current"], repositoryPath);
+    const result = await runGit(
+      this.command,
+      ["branch", "--show-current"],
+      repositoryPath,
+    );
     return result.stdout.trim();
   }
 
   async verifyCommit(repositoryPath: string, commit: string): Promise<void> {
-    await runGit(this.command, ["rev-parse", "--verify", `${commit}^{commit}`], repositoryPath);
+    await runGit(
+      this.command,
+      ["rev-parse", "--verify", `${commit}^{commit}`],
+      repositoryPath,
+    );
   }
 
   async createDetachedWorktree(
@@ -148,15 +203,66 @@ export class GitCliClient implements GitProjectClient {
     reviewPath: string,
     commit: string,
   ): Promise<void> {
-    await runGit(this.command, ["worktree", "add", "--detach", reviewPath, commit], repositoryPath);
+    await runGit(
+      this.command,
+      ["worktree", "add", "--detach", reviewPath, commit],
+      repositoryPath,
+    );
   }
 
-  async removeWorktree(repositoryPath: string, reviewPath: string): Promise<void> {
-    await runGit(this.command, ["worktree", "remove", reviewPath], repositoryPath);
+  async removeWorktree(
+    repositoryPath: string,
+    reviewPath: string,
+  ): Promise<void> {
+    await runGit(
+      this.command,
+      ["worktree", "remove", reviewPath],
+      repositoryPath,
+    );
+  }
+
+  async readCommitLog(
+    repositoryPath: string,
+    previousCommit: string | null,
+    newCommit: string,
+  ): Promise<string> {
+    const args =
+      previousCommit === null
+        ? ["log", "--oneline", "--decorate=short", "--max-count=1", newCommit]
+        : [
+            "log",
+            "--oneline",
+            "--decorate=short",
+            `${previousCommit}..${newCommit}`,
+          ];
+    const result = await runGit(this.command, args, repositoryPath);
+    return result.stdout;
+  }
+
+  async readDiff(
+    repositoryPath: string,
+    previousCommit: string,
+    newCommit: string,
+  ): Promise<string> {
+    const result = await runGit(
+      this.command,
+      ["diff", `${previousCommit}..${newCommit}`],
+      repositoryPath,
+    );
+    return result.stdout;
+  }
+
+  async listTrackedFiles(repositoryPath: string): Promise<string> {
+    const result = await runGit(this.command, ["ls-files"], repositoryPath);
+    return result.stdout;
   }
 }
 
-async function runGit(command: string, args: string[], cwd?: string): Promise<GitCommandResult> {
+async function runGit(
+  command: string,
+  args: string[],
+  cwd?: string,
+): Promise<GitCommandResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
@@ -208,7 +314,10 @@ async function runGit(command: string, args: string[], cwd?: string): Promise<Gi
           stdout: result.stdout,
           stderr: result.stderr,
           exitCode: result.exitCode,
-          message: result.stderr.trim() || result.stdout.trim() || "Git-команда завершилась ошибкой.",
+          message:
+            result.stderr.trim() ||
+            result.stdout.trim() ||
+            "Git-команда завершилась ошибкой.",
         }),
       );
     });

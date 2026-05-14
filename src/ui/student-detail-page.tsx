@@ -6,6 +6,7 @@ import { useState, useTransition, type FormEvent, type ReactNode } from "react";
 import {
   AlertCircle,
   ArrowLeft,
+  Bot,
   CheckCircle2,
   Clock3,
   FileCode2,
@@ -15,12 +16,16 @@ import {
   Save,
   Trash2,
 } from "lucide-react";
-import type { StudentDetailsData, UpdateEventListItem } from "@/application/project-updates";
+import type {
+  StudentDetailsData,
+  UpdateEventListItem,
+} from "@/application/project-updates";
 import { AppShell } from "./app-shell";
 import {
   addReviewCommentAction,
   deleteReviewCommentAction,
   openUpdateCodeAction,
+  runAiAnalysisAction,
   type StudentActionState,
   updateReviewCommentAction,
   updateReviewStatusAction,
@@ -35,7 +40,9 @@ export function StudentDetailPage({ data }: StudentDetailPageProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<StudentActionState | null>(null);
-  const [formMessages, setFormMessages] = useState<Record<string, StudentActionState | undefined>>({});
+  const [formMessages, setFormMessages] = useState<
+    Record<string, StudentActionState | undefined>
+  >({});
   const updateDisabled = data.project.repositoryUrl === null || isPending;
 
   function updateProject() {
@@ -151,6 +158,26 @@ export function StudentDetailPage({ data }: StudentDetailPageProps) {
     });
   }
 
+  function runAiAnalysis(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const key = getAiAnalysisFormKey(getFormString(formData, "updateEventId"));
+    clearFormMessage(key);
+
+    startTransition(async () => {
+      const result = await runAiAnalysisAction(formData);
+      setScopedFormMessage(key, result);
+
+      if (result.ok) {
+        setMessage(result);
+      } else {
+        setMessage(null);
+      }
+
+      router.refresh();
+    });
+  }
+
   function setScopedFormMessage(key: string, result: StudentActionState) {
     setFormMessages((current) => {
       const next = { ...current };
@@ -189,10 +216,16 @@ export function StudentDetailPage({ data }: StudentDetailPageProps) {
               <ArrowLeft size={16} aria-hidden="true" />
               Студенты
             </Link>
-            <p className="mt-5 text-sm font-medium text-teal-700">Карточка студента</p>
-            <h1 className="mt-1 text-3xl font-semibold text-slate-950">{data.student.displayName}</h1>
+            <p className="mt-5 text-sm font-medium text-teal-700">
+              Карточка студента
+            </p>
+            <h1 className="mt-1 text-3xl font-semibold text-slate-950">
+              {data.student.displayName}
+            </h1>
             {data.student.notes ? (
-              <p className="mt-2 max-w-3xl text-sm text-slate-600">{data.student.notes}</p>
+              <p className="mt-2 max-w-3xl text-sm text-slate-600">
+                {data.student.notes}
+              </p>
             ) : null}
           </div>
 
@@ -216,13 +249,23 @@ export function StudentDetailPage({ data }: StudentDetailPageProps) {
           <div
             className={[
               "flex items-start gap-3 rounded-lg border bg-white p-4 text-sm",
-              message.ok ? "border-emerald-200 text-emerald-800" : "border-red-200 text-red-900",
+              message.ok
+                ? "border-emerald-200 text-emerald-800"
+                : "border-red-200 text-red-900",
             ].join(" ")}
           >
             {message.ok ? (
-              <CheckCircle2 className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
+              <CheckCircle2
+                className="mt-0.5 shrink-0"
+                size={18}
+                aria-hidden="true"
+              />
             ) : (
-              <AlertCircle className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
+              <AlertCircle
+                className="mt-0.5 shrink-0"
+                size={18}
+                aria-hidden="true"
+              />
             )}
             <p>{message.message}</p>
           </div>
@@ -236,6 +279,7 @@ export function StudentDetailPage({ data }: StudentDetailPageProps) {
           formMessages={formMessages}
           onAddComment={addComment}
           onDeleteComment={deleteComment}
+          onRunAiAnalysis={runAiAnalysis}
           onOpenCode={openCode}
           onUpdateComment={updateComment}
           onUpdateStatus={updateStatus}
@@ -261,7 +305,9 @@ function ProjectContext({ data }: { data: StudentDetailsData }) {
               icon={<GitBranch size={16} aria-hidden="true" />}
               label={data.project.repositoryUrl ?? "GitHub-ссылка не указана"}
             />
-            <InfoLine label={data.project.localPath ?? "Локальная копия еще не создана"} />
+            <InfoLine
+              label={data.project.localPath ?? "Локальная копия еще не создана"}
+            />
             <InfoLine label={`Ветка: ${data.project.defaultBranch}`} />
             <InfoLine
               label={
@@ -286,7 +332,9 @@ function ProjectContext({ data }: { data: StudentDetailsData }) {
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm font-medium text-slate-700">ИИ-описание проекта</p>
+          <p className="text-sm font-medium text-slate-700">
+            ИИ-описание проекта
+          </p>
           <p className="mt-2 text-sm text-slate-600">
             {data.project.aiDescriptionSummary ?? "Описание пока отсутствует."}
           </p>
@@ -303,6 +351,7 @@ function UpdatesTimeline({
   formMessages,
   onAddComment,
   onDeleteComment,
+  onRunAiAnalysis,
   onOpenCode,
   onUpdateComment,
   onUpdateStatus,
@@ -313,6 +362,7 @@ function UpdatesTimeline({
   formMessages: Record<string, StudentActionState | undefined>;
   onAddComment: (event: FormEvent<HTMLFormElement>) => void;
   onDeleteComment: (event: FormEvent<HTMLFormElement>) => void;
+  onRunAiAnalysis: (event: FormEvent<HTMLFormElement>) => void;
   onOpenCode: (event: FormEvent<HTMLFormElement>) => void;
   onUpdateComment: (event: FormEvent<HTMLFormElement>) => void;
   onUpdateStatus: (event: FormEvent<HTMLFormElement>) => void;
@@ -323,7 +373,9 @@ function UpdatesTimeline({
         <div className="mx-auto flex size-12 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
           <Clock3 size={24} aria-hidden="true" />
         </div>
-        <h2 className="mt-4 text-xl font-semibold text-slate-950">Лента обновлений пуста</h2>
+        <h2 className="mt-4 text-xl font-semibold text-slate-950">
+          Лента обновлений пуста
+        </h2>
         <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
           Запустите обновление проекта, чтобы сохранить первое событие истории.
         </p>
@@ -335,7 +387,9 @@ function UpdatesTimeline({
     <section className="grid gap-3">
       <div>
         <p className="text-sm font-medium text-teal-700">История проекта</p>
-        <h2 className="mt-1 text-2xl font-semibold text-slate-950">Лента обновлений</h2>
+        <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+          Лента обновлений
+        </h2>
       </div>
       {events.map((event) => (
         <UpdateEventCard
@@ -346,6 +400,7 @@ function UpdatesTimeline({
           formMessages={formMessages}
           onAddComment={onAddComment}
           onDeleteComment={onDeleteComment}
+          onRunAiAnalysis={onRunAiAnalysis}
           onOpenCode={onOpenCode}
           onUpdateComment={onUpdateComment}
           onUpdateStatus={onUpdateStatus}
@@ -362,6 +417,7 @@ function UpdateEventCard({
   formMessages,
   onAddComment,
   onDeleteComment,
+  onRunAiAnalysis,
   onOpenCode,
   onUpdateComment,
   onUpdateStatus,
@@ -372,6 +428,7 @@ function UpdateEventCard({
   formMessages: Record<string, StudentActionState | undefined>;
   onAddComment: (event: FormEvent<HTMLFormElement>) => void;
   onDeleteComment: (event: FormEvent<HTMLFormElement>) => void;
+  onRunAiAnalysis: (event: FormEvent<HTMLFormElement>) => void;
   onOpenCode: (event: FormEvent<HTMLFormElement>) => void;
   onUpdateComment: (event: FormEvent<HTMLFormElement>) => void;
   onUpdateStatus: (event: FormEvent<HTMLFormElement>) => void;
@@ -381,13 +438,19 @@ function UpdateEventCard({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
-            <h3 className="text-lg font-semibold text-slate-950">{event.resultLabel}</h3>
+            <h3 className="text-lg font-semibold text-slate-950">
+              {event.resultLabel}
+            </h3>
             <span className="inline-flex min-h-7 items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-medium text-slate-700">
               {event.reviewStatusLabel}
             </span>
             <span className="inline-flex min-h-7 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700">
               <MessageSquare size={14} aria-hidden="true" />
               {event.commentsCount}
+            </span>
+            <span className="inline-flex min-h-7 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700">
+              <Bot size={14} aria-hidden="true" />
+              {event.aiReportsCount}
             </span>
           </div>
           <p className="mt-2 text-sm text-slate-600">
@@ -425,12 +488,43 @@ function UpdateEventCard({
         </div>
 
         <details className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 lg:w-[28rem]">
-          <summary className="cursor-pointer font-medium text-slate-900">Детали события</summary>
+          <summary className="cursor-pointer font-medium text-slate-900">
+            Детали события
+          </summary>
           <div className="mt-3 grid gap-2 border-b border-slate-200 pb-4">
             <p>Репозиторий: {event.repositoryUrlSnapshot ?? "не указан"}</p>
-            <p>Локальный путь: {event.projectLocalPathSnapshot ?? "не сохранен"}</p>
+            <p>
+              Локальный путь: {event.projectLocalPathSnapshot ?? "не сохранен"}
+            </p>
             <p>Статус события: {formatEventStatus(event.status)}</p>
           </div>
+
+          <form className="mt-4 grid gap-2" onSubmit={onRunAiAnalysis}>
+            <input type="hidden" name="studentId" value={studentId} />
+            <input type="hidden" name="updateEventId" value={event.id} />
+            <button
+              type="submit"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+              disabled={isPending || event.aiAnalysisDisabledReason !== null}
+              title={
+                event.aiAnalysisDisabledReason ??
+                "Запустить ИИ-анализ выбранного обновления"
+              }
+            >
+              <Bot size={16} aria-hidden="true" />
+              Запустить ИИ-анализ
+            </button>
+            {event.aiAnalysisDisabledReason ? (
+              <p className="text-sm text-slate-500">
+                {event.aiAnalysisDisabledReason}
+              </p>
+            ) : null}
+            <InlineFormMessage
+              message={formMessages[getAiAnalysisFormKey(event.id)]}
+            />
+          </form>
+
+          <AiReportsList event={event} />
 
           <form className="mt-4 grid gap-2" onSubmit={onOpenCode}>
             <input type="hidden" name="studentId" value={studentId} />
@@ -449,15 +543,22 @@ function UpdateEventCard({
               Открыть код
             </button>
             {event.newCommit === null ? (
-              <p className="text-sm text-slate-500">Нет известного коммита для открытия.</p>
+              <p className="text-sm text-slate-500">
+                Нет известного коммита для открытия.
+              </p>
             ) : null}
-            <InlineFormMessage message={formMessages[getOpenCodeFormKey(event.id)]} />
+            <InlineFormMessage
+              message={formMessages[getOpenCodeFormKey(event.id)]}
+            />
           </form>
 
           <form className="mt-4 grid gap-2" onSubmit={onUpdateStatus}>
             <input type="hidden" name="studentId" value={studentId} />
             <input type="hidden" name="updateEventId" value={event.id} />
-            <label className="text-xs font-semibold uppercase text-slate-500" htmlFor={`status-${event.id}`}>
+            <label
+              className="text-xs font-semibold uppercase text-slate-500"
+              htmlFor={`status-${event.id}`}
+            >
               Статус проверки
             </label>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -483,20 +584,27 @@ function UpdateEventCard({
                 Статус
               </button>
             </div>
-            <InlineFormMessage message={formMessages[getStatusFormKey(event.id)]} />
+            <InlineFormMessage
+              message={formMessages[getStatusFormKey(event.id)]}
+            />
           </form>
 
           <div className="mt-5 grid gap-3">
             <div className="flex items-center justify-between gap-3">
               <h4 className="font-semibold text-slate-950">Комментарии</h4>
-              <span className="text-xs text-slate-500">{event.commentsCount}</span>
+              <span className="text-xs text-slate-500">
+                {event.commentsCount}
+              </span>
             </div>
 
             <form className="grid gap-2" onSubmit={onAddComment}>
               <input type="hidden" name="studentId" value={studentId} />
               <input type="hidden" name="updateEventId" value={event.id} />
               <input type="hidden" name="basedOnAiReportId" value="" />
-              <label className="text-xs font-semibold uppercase text-slate-500" htmlFor={`comment-${event.id}`}>
+              <label
+                className="text-xs font-semibold uppercase text-slate-500"
+                htmlFor={`comment-${event.id}`}
+              >
                 Новый комментарий
               </label>
               <textarea
@@ -517,7 +625,9 @@ function UpdateEventCard({
                   Сохранить
                 </button>
               </div>
-              <InlineFormMessage message={formMessages[getAddCommentFormKey(event.id)]} />
+              <InlineFormMessage
+                message={formMessages[getAddCommentFormKey(event.id)]}
+              />
             </form>
 
             {event.comments.length === 0 ? (
@@ -533,11 +643,17 @@ function UpdateEventCard({
                   >
                     <form className="grid gap-2" onSubmit={onUpdateComment}>
                       <input type="hidden" name="studentId" value={studentId} />
-                      <input type="hidden" name="commentId" value={comment.id} />
+                      <input
+                        type="hidden"
+                        name="commentId"
+                        value={comment.id}
+                      />
                       <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
                         <span>{formatDateTime(comment.createdAt)}</span>
                         {comment.updatedAt !== comment.createdAt ? (
-                          <span>изменен {formatDateTime(comment.updatedAt)}</span>
+                          <span>
+                            изменен {formatDateTime(comment.updatedAt)}
+                          </span>
                         ) : null}
                       </div>
                       <textarea
@@ -557,11 +673,22 @@ function UpdateEventCard({
                           Сохранить
                         </button>
                       </div>
-                      <InlineFormMessage message={formMessages[getEditCommentFormKey(comment.id)]} />
+                      <InlineFormMessage
+                        message={
+                          formMessages[getEditCommentFormKey(comment.id)]
+                        }
+                      />
                     </form>
-                    <form className="flex justify-end" onSubmit={onDeleteComment}>
+                    <form
+                      className="flex justify-end"
+                      onSubmit={onDeleteComment}
+                    >
                       <input type="hidden" name="studentId" value={studentId} />
-                      <input type="hidden" name="commentId" value={comment.id} />
+                      <input
+                        type="hidden"
+                        name="commentId"
+                        value={comment.id}
+                      />
                       <input type="hidden" name="confirmed" value="true" />
                       <button
                         type="submit"
@@ -572,7 +699,11 @@ function UpdateEventCard({
                         Удалить
                       </button>
                     </form>
-                    <InlineFormMessage message={formMessages[getDeleteCommentFormKey(comment.id)]} />
+                    <InlineFormMessage
+                      message={
+                        formMessages[getDeleteCommentFormKey(comment.id)]
+                      }
+                    />
                   </div>
                 ))}
               </div>
@@ -581,6 +712,109 @@ function UpdateEventCard({
         </details>
       </div>
     </article>
+  );
+}
+
+function AiReportsList({ event }: { event: UpdateEventListItem }) {
+  return (
+    <div className="mt-5 grid gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="font-semibold text-slate-950">ИИ-рапорты</h4>
+        <span className="text-xs text-slate-500">{event.aiReportsCount}</span>
+      </div>
+
+      {event.aiReports.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">
+          ИИ-рапортов пока нет.
+        </p>
+      ) : (
+        <div className="grid gap-3">
+          {event.aiReports.map((report) => (
+            <article
+              key={report.id}
+              className="rounded-lg border border-slate-200 bg-white p-3"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex min-h-7 items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-medium text-slate-700">
+                  {formatAiReportStatus(report.status)}
+                </span>
+                <span className="text-xs text-slate-500">
+                  {formatAiAnalysisMode(report.analysisMode)}
+                </span>
+                <span className="text-xs text-slate-500">
+                  {formatDateTime(report.startedAt)}
+                </span>
+              </div>
+              {report.summary ? (
+                <p className="mt-3 text-sm font-medium text-slate-900">
+                  {report.summary}
+                </p>
+              ) : null}
+              {report.error ? (
+                <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+                  {report.error}
+                </p>
+              ) : null}
+              {report.changes ? (
+                <p className="mt-3 text-sm text-slate-700">{report.changes}</p>
+              ) : null}
+              {report.importantFiles.length > 0 ? (
+                <CompactList
+                  title="Важные файлы"
+                  items={report.importantFiles}
+                />
+              ) : null}
+              {report.risks.length > 0 ? (
+                <CompactList title="Риски" items={report.risks} />
+              ) : null}
+              {report.manualReviewQuestions.length > 0 ? (
+                <CompactList
+                  title="Вопросы для проверки"
+                  items={report.manualReviewQuestions}
+                />
+              ) : null}
+              {report.teacherCommentDraft ? (
+                <div className="mt-3 rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm text-teal-950">
+                  <p className="font-semibold">Черновик комментария</p>
+                  <p className="mt-2 whitespace-pre-wrap">
+                    {report.teacherCommentDraft}
+                  </p>
+                </div>
+              ) : null}
+              <p className="mt-3 text-xs text-slate-500">
+                PR-контекст:{" "}
+                {formatPullRequestContext(report.pullRequestContext)}
+              </p>
+              {report.fullText ? (
+                <details className="mt-3 text-xs text-slate-600">
+                  <summary className="cursor-pointer font-medium text-slate-700">
+                    Полный текст рапорта
+                  </summary>
+                  <p className="mt-2 whitespace-pre-wrap break-words">
+                    {report.fullText}
+                  </p>
+                </details>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CompactList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="mt-3 text-sm text-slate-700">
+      <p className="font-semibold text-slate-900">{title}</p>
+      <ul className="mt-1 grid gap-1">
+        {items.map((item, index) => (
+          <li key={`${title}-${index}`} className="break-words">
+            {item}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -593,7 +827,9 @@ function InlineFormMessage({ message }: { message?: StudentActionState }) {
     <p
       className={[
         "rounded-lg border px-3 py-2 text-sm",
-        message.ok ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-900",
+        message.ok
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+          : "border-red-200 bg-red-50 text-red-900",
       ].join(" ")}
     >
       {message.message}
@@ -637,6 +873,48 @@ function formatEventStatus(status: UpdateEventListItem["status"]): string {
   return "прервано";
 }
 
+function formatAiReportStatus(
+  status: UpdateEventListItem["aiReports"][number]["status"],
+): string {
+  if (status === "running") {
+    return "выполняется";
+  }
+
+  if (status === "ready") {
+    return "готов";
+  }
+
+  return "ошибка";
+}
+
+function formatAiAnalysisMode(
+  mode: UpdateEventListItem["aiReports"][number]["analysisMode"],
+): string {
+  return mode === "current_state"
+    ? "текущее состояние"
+    : "изменения между коммитами";
+}
+
+function formatPullRequestContext(
+  context: UpdateEventListItem["aiReports"][number]["pullRequestContext"],
+): string {
+  if (context.status === "found") {
+    return context.number === null
+      ? (context.title ?? "найден")
+      : `#${context.number}${context.title ? ` ${context.title}` : ""}`;
+  }
+
+  if (context.status === "not_found") {
+    return "не найден";
+  }
+
+  if (context.status === "unavailable") {
+    return context.error ?? "недоступен";
+  }
+
+  return "не запрашивался";
+}
+
 function getFormString(formData: FormData, key: string): string {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
@@ -660,6 +938,10 @@ function getDeleteCommentFormKey(commentId: string): string {
 
 function getOpenCodeFormKey(updateEventId: string): string {
   return `open-code:${updateEventId}`;
+}
+
+function getAiAnalysisFormKey(updateEventId: string): string {
+  return `ai-analysis:${updateEventId}`;
 }
 
 const reviewStatusOptions: Array<{

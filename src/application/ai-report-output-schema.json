@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "summary",
+    "importantFiles",
+    "changes",
+    "risks",
+    "manualReviewQuestions",
+    "teacherCommentDraft",
+    "fullText",
+    "projectDescription"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "Краткое резюме выбранного обновления или текущего состояния проекта."
+    },
+    "importantFiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Файлы, которые преподавателю стоит посмотреть вручную."
+    },
+    "changes": {
+      "type": "string",
+      "description": "Описание изменений между коммитами или текущего устройства проекта."
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Возможные проблемы, слабые места или подозрительные решения."
+    },
+    "manualReviewQuestions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Вопросы, которые преподавателю стоит проверить вручную."
+    },
+    "teacherCommentDraft": {
+      "type": "string",
+      "description": "Черновик комментария преподавателя. Он не является финальным комментарием."
+    },
+    "fullText": {
+      "type": "string",
+      "description": "Полный текст ИИ-рапорта."
+    },
+    "projectDescription": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["summary", "idea", "keyParts"],
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "idea": {
+          "type": "string"
+        },
+        "keyParts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

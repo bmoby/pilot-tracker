@@ -184,6 +184,65 @@ export const commentSchema = z.object({
 });
 export type Comment = z.infer<typeof commentSchema>;
 
+export const aiReportStatusSchema = z.enum(["running", "ready", "error"]);
+export type AiReportStatus = z.infer<typeof aiReportStatusSchema>;
+
+export const aiAnalysisModeSchema = z.enum([
+  "current_state",
+  "changes_between_commits",
+]);
+export type AiAnalysisMode = z.infer<typeof aiAnalysisModeSchema>;
+
+export const aiPullRequestContextStatusSchema = z.enum([
+  "not_requested",
+  "found",
+  "not_found",
+  "unavailable",
+]);
+export type AiPullRequestContextStatus = z.infer<
+  typeof aiPullRequestContextStatusSchema
+>;
+
+export const aiPullRequestContextSchema = z.object({
+  status: aiPullRequestContextStatusSchema,
+  number: z.number().int().positive().nullable(),
+  title: z.string().nullable(),
+  url: z.string().nullable(),
+  state: z.string().nullable(),
+  error: z.string().nullable(),
+});
+export type AiPullRequestContext = z.infer<typeof aiPullRequestContextSchema>;
+
+export const aiReportSchema = z.object({
+  id: aiReportIdSchema,
+  studentId: studentIdSchema,
+  projectId: projectIdSchema,
+  updateEventId: updateEventIdSchema,
+  status: aiReportStatusSchema,
+  analysisMode: aiAnalysisModeSchema,
+  startedAt: isoUtcDateSchema,
+  finishedAt: isoUtcDateSchema.nullable(),
+  repositoryUrlSnapshot: z.string().nullable(),
+  projectLocalPathSnapshot: z.string().nullable(),
+  analysisPath: z.string().nullable(),
+  branch: z.literal("main"),
+  previousCommit: z.string().nullable(),
+  newCommit: z.string().nullable(),
+  summary: z.string().nullable(),
+  importantFiles: z.array(z.string()),
+  changes: z.string().nullable(),
+  risks: z.array(z.string()),
+  manualReviewQuestions: z.array(z.string()),
+  teacherCommentDraft: z.string().nullable(),
+  fullText: z.string().nullable(),
+  pullRequestContext: aiPullRequestContextSchema,
+  technicalDetails: z.string().nullable(),
+  error: z.string().nullable(),
+  createdAt: isoUtcDateSchema,
+  updatedAt: isoUtcDateSchema,
+});
+export type AiReport = z.infer<typeof aiReportSchema>;
+
 export const aiDescriptionSchema = z.object({
   status: z.enum(["missing", "running", "ready", "error"]),
   summary: z.string().nullable(),
@@ -330,7 +389,7 @@ export type ReviewStatusesFile = z.infer<typeof reviewStatusesFileSchema>;
 
 export const aiReportsFileSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
-  aiReports: z.array(z.record(z.string(), z.unknown())),
+  aiReports: z.array(aiReportSchema),
 });
 
 export type AiReportsFile = z.infer<typeof aiReportsFileSchema>;
