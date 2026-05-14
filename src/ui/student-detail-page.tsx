@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock3,
+  FileCode2,
   GitBranch,
   MessageSquare,
   RefreshCw,
@@ -19,6 +20,7 @@ import { AppShell } from "./app-shell";
 import {
   addReviewCommentAction,
   deleteReviewCommentAction,
+  openUpdateCodeAction,
   type StudentActionState,
   updateReviewCommentAction,
   updateReviewStatusAction,
@@ -130,6 +132,25 @@ export function StudentDetailPage({ data }: StudentDetailPageProps) {
     });
   }
 
+  function openCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const key = getOpenCodeFormKey(getFormString(formData, "updateEventId"));
+    clearFormMessage(key);
+
+    startTransition(async () => {
+      const result = await openUpdateCodeAction(formData);
+      setScopedFormMessage(key, result);
+
+      if (result.ok) {
+        setMessage(result);
+        router.refresh();
+      } else {
+        setMessage(null);
+      }
+    });
+  }
+
   function setScopedFormMessage(key: string, result: StudentActionState) {
     setFormMessages((current) => {
       const next = { ...current };
@@ -215,6 +236,7 @@ export function StudentDetailPage({ data }: StudentDetailPageProps) {
           formMessages={formMessages}
           onAddComment={addComment}
           onDeleteComment={deleteComment}
+          onOpenCode={openCode}
           onUpdateComment={updateComment}
           onUpdateStatus={updateStatus}
         />
@@ -281,6 +303,7 @@ function UpdatesTimeline({
   formMessages,
   onAddComment,
   onDeleteComment,
+  onOpenCode,
   onUpdateComment,
   onUpdateStatus,
 }: {
@@ -290,6 +313,7 @@ function UpdatesTimeline({
   formMessages: Record<string, StudentActionState | undefined>;
   onAddComment: (event: FormEvent<HTMLFormElement>) => void;
   onDeleteComment: (event: FormEvent<HTMLFormElement>) => void;
+  onOpenCode: (event: FormEvent<HTMLFormElement>) => void;
   onUpdateComment: (event: FormEvent<HTMLFormElement>) => void;
   onUpdateStatus: (event: FormEvent<HTMLFormElement>) => void;
 }) {
@@ -322,6 +346,7 @@ function UpdatesTimeline({
           formMessages={formMessages}
           onAddComment={onAddComment}
           onDeleteComment={onDeleteComment}
+          onOpenCode={onOpenCode}
           onUpdateComment={onUpdateComment}
           onUpdateStatus={onUpdateStatus}
         />
@@ -337,6 +362,7 @@ function UpdateEventCard({
   formMessages,
   onAddComment,
   onDeleteComment,
+  onOpenCode,
   onUpdateComment,
   onUpdateStatus,
 }: {
@@ -346,6 +372,7 @@ function UpdateEventCard({
   formMessages: Record<string, StudentActionState | undefined>;
   onAddComment: (event: FormEvent<HTMLFormElement>) => void;
   onDeleteComment: (event: FormEvent<HTMLFormElement>) => void;
+  onOpenCode: (event: FormEvent<HTMLFormElement>) => void;
   onUpdateComment: (event: FormEvent<HTMLFormElement>) => void;
   onUpdateStatus: (event: FormEvent<HTMLFormElement>) => void;
 }) {
@@ -404,6 +431,28 @@ function UpdateEventCard({
             <p>Локальный путь: {event.projectLocalPathSnapshot ?? "не сохранен"}</p>
             <p>Статус события: {formatEventStatus(event.status)}</p>
           </div>
+
+          <form className="mt-4 grid gap-2" onSubmit={onOpenCode}>
+            <input type="hidden" name="studentId" value={studentId} />
+            <input type="hidden" name="updateEventId" value={event.id} />
+            <button
+              type="submit"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+              disabled={isPending || event.newCommit === null}
+              title={
+                event.newCommit === null
+                  ? "У обновления нет известного коммита для открытия"
+                  : "Открыть код выбранного обновления в VS Code"
+              }
+            >
+              <FileCode2 size={16} aria-hidden="true" />
+              Открыть код
+            </button>
+            {event.newCommit === null ? (
+              <p className="text-sm text-slate-500">Нет известного коммита для открытия.</p>
+            ) : null}
+            <InlineFormMessage message={formMessages[getOpenCodeFormKey(event.id)]} />
+          </form>
 
           <form className="mt-4 grid gap-2" onSubmit={onUpdateStatus}>
             <input type="hidden" name="studentId" value={studentId} />
@@ -607,6 +656,10 @@ function getEditCommentFormKey(commentId: string): string {
 
 function getDeleteCommentFormKey(commentId: string): string {
   return `delete-comment:${commentId}`;
+}
+
+function getOpenCodeFormKey(updateEventId: string): string {
+  return `open-code:${updateEventId}`;
 }
 
 const reviewStatusOptions: Array<{
