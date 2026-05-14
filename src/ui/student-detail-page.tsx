@@ -756,20 +756,24 @@ function AiReportsList({ event }: { event: UpdateEventListItem }) {
                 </p>
               ) : null}
               {report.changes ? (
-                <p className="mt-3 text-sm text-slate-700">{report.changes}</p>
-              ) : null}
-              {report.importantFiles.length > 0 ? (
-                <CompactList
-                  title="Важные файлы"
-                  items={report.importantFiles}
-                />
+                <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800">
+                  <p className="font-semibold text-slate-950">
+                    Что добавлено
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap break-words">
+                    {report.changes}
+                  </p>
+                </div>
               ) : null}
               {report.risks.length > 0 ? (
-                <CompactList title="Риски" items={report.risks} />
+                <CompactList
+                  title="Что быстро проверить"
+                  items={report.risks}
+                />
               ) : null}
               {report.manualReviewQuestions.length > 0 ? (
                 <CompactList
-                  title="Вопросы для проверки"
+                  title="Вопросы студенту"
                   items={report.manualReviewQuestions}
                 />
               ) : null}
@@ -781,10 +785,7 @@ function AiReportsList({ event }: { event: UpdateEventListItem }) {
                   </p>
                 </div>
               ) : null}
-              <p className="mt-3 text-xs text-slate-500">
-                PR-контекст:{" "}
-                {formatPullRequestContext(report.pullRequestContext)}
-              </p>
+              <TechnicalReference report={report} />
               {report.fullText ? (
                 <details className="mt-3 text-xs text-slate-600">
                   <summary className="cursor-pointer font-medium text-slate-700">
@@ -800,6 +801,45 @@ function AiReportsList({ event }: { event: UpdateEventListItem }) {
         </div>
       )}
     </div>
+  );
+}
+
+function TechnicalReference({
+  report,
+}: {
+  report: UpdateEventListItem["aiReports"][number];
+}) {
+  const hasTechnicalReference =
+    report.importantFiles.length > 0 ||
+    report.pullRequestContext.status !== "not_requested" ||
+    report.technicalDetails !== null;
+
+  if (!hasTechnicalReference) {
+    return null;
+  }
+
+  return (
+    <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+      <summary className="cursor-pointer font-medium text-slate-700">
+        Техническая справка
+      </summary>
+      <div className="mt-3 grid gap-2">
+        <p>
+          PR-контекст: {formatPullRequestContext(report.pullRequestContext)}
+        </p>
+        {report.importantFiles.length > 0 ? (
+          <CompactList
+            title="Файлы для углубления"
+            items={report.importantFiles}
+          />
+        ) : null}
+        {report.technicalDetails ? (
+          <p className="whitespace-pre-wrap break-words">
+            {report.technicalDetails}
+          </p>
+        ) : null}
+      </div>
+    </details>
   );
 }
 
