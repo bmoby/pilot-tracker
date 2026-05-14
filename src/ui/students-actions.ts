@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { updateAllProjects, updateSingleProject } from "@/application/project-updates";
+import { openUpdateCodeInVsCode } from "@/application/review-code";
 import {
   addReviewComment,
   deleteReviewComment,
@@ -209,6 +210,29 @@ export async function updateReviewStatusAction(formData: FormData): Promise<Stud
   return {
     ok: true,
     message: "Статус проверки обновлен.",
+  };
+}
+
+export async function openUpdateCodeAction(formData: FormData): Promise<StudentActionState> {
+  const studentId = getFormString(formData, "studentId");
+  const result = await openUpdateCodeInVsCode({
+    updateEventId: getFormString(formData, "updateEventId"),
+  });
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      message: result.error.path
+        ? `${result.error.message} Путь: ${result.error.path}`
+        : result.error.message,
+    };
+  }
+
+  revalidatePath(`/students/${result.value.studentId || studentId}`);
+
+  return {
+    ok: true,
+    message: `Код открыт в VS Code. Review-копия: ${result.value.reviewCopyPath}`,
   };
 }
 

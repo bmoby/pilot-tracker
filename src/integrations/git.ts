@@ -53,6 +53,16 @@ export type GitProjectClient = {
   resetToOriginMain(repositoryPath: string): Promise<void>;
 };
 
+export type GitReviewCopyClient = {
+  readHead(repositoryPath: string): Promise<string>;
+  readStatus(repositoryPath: string): Promise<string>;
+  isRepository(repositoryPath: string): Promise<boolean>;
+  readCurrentBranch(repositoryPath: string): Promise<string>;
+  verifyCommit(repositoryPath: string, commit: string): Promise<void>;
+  createDetachedWorktree(repositoryPath: string, reviewPath: string, commit: string): Promise<void>;
+  removeWorktree(repositoryPath: string, reviewPath: string): Promise<void>;
+};
+
 export class GitCliClient implements GitProjectClient {
   constructor(private readonly command = "git") {}
 
@@ -122,6 +132,27 @@ export class GitCliClient implements GitProjectClient {
 
   async resetToOriginMain(repositoryPath: string): Promise<void> {
     await runGit(this.command, ["reset", "--hard", "origin/main"], repositoryPath);
+  }
+
+  async readCurrentBranch(repositoryPath: string): Promise<string> {
+    const result = await runGit(this.command, ["branch", "--show-current"], repositoryPath);
+    return result.stdout.trim();
+  }
+
+  async verifyCommit(repositoryPath: string, commit: string): Promise<void> {
+    await runGit(this.command, ["rev-parse", "--verify", `${commit}^{commit}`], repositoryPath);
+  }
+
+  async createDetachedWorktree(
+    repositoryPath: string,
+    reviewPath: string,
+    commit: string,
+  ): Promise<void> {
+    await runGit(this.command, ["worktree", "add", "--detach", reviewPath, commit], repositoryPath);
+  }
+
+  async removeWorktree(repositoryPath: string, reviewPath: string): Promise<void> {
+    await runGit(this.command, ["worktree", "remove", reviewPath], repositoryPath);
   }
 }
 
