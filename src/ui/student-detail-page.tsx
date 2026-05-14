@@ -7,6 +7,7 @@ import {
   AlertCircle,
   ArrowLeft,
   Bot,
+  ChevronDown,
   CheckCircle2,
   Clock3,
   FileCode2,
@@ -434,373 +435,514 @@ function UpdateEventCard({
   onUpdateStatus: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-3">
-            <h3 className="text-lg font-semibold text-slate-950">
-              {event.resultLabel}
-            </h3>
-            <span className="inline-flex min-h-7 items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-medium text-slate-700">
-              {event.reviewStatusLabel}
-            </span>
-            <span className="inline-flex min-h-7 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700">
-              <MessageSquare size={14} aria-hidden="true" />
-              {event.commentsCount}
-            </span>
-            <span className="inline-flex min-h-7 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700">
-              <Bot size={14} aria-hidden="true" />
-              {event.aiReportsCount}
+    <article className="rounded-lg border border-slate-200 bg-white">
+      <details className="group">
+        <summary className="list-none cursor-pointer p-5 [&::-webkit-details-marker]:hidden">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="text-lg font-semibold text-slate-950">
+                  {event.resultLabel}
+                </h3>
+                <span className="inline-flex min-h-7 items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-medium text-slate-700">
+                  {event.reviewStatusLabel}
+                </span>
+                <span className="inline-flex min-h-7 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700">
+                  <MessageSquare size={14} aria-hidden="true" />
+                  {event.commentsCount}
+                </span>
+                <span className="inline-flex min-h-7 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700">
+                  <Bot size={14} aria-hidden="true" />
+                  {event.aiReportsCount}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-slate-600">
+                {formatDateTime(event.occurredAt ?? event.startedAt)}
+              </p>
+              <div className="mt-4 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
+                <InfoLine label={`Ветка: ${event.branch}`} />
+                <InfoLine
+                  label={
+                    event.newCommitsCount === null
+                      ? "Количество новых коммитов не вычислялось"
+                      : `Новых коммитов: ${event.newCommitsCount}`
+                  }
+                />
+                <InfoLine
+                  label={
+                    event.previousCommit
+                      ? `Старый коммит: ${shortCommit(event.previousCommit)}`
+                      : "Старый коммит отсутствует"
+                  }
+                />
+                <InfoLine
+                  label={
+                    event.newCommit
+                      ? `Новый коммит: ${shortCommit(event.newCommit)}`
+                      : "Новый коммит отсутствует"
+                  }
+                />
+              </div>
+              {event.error ? (
+                <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+                  {event.error}
+                </p>
+              ) : null}
+            </div>
+
+            <span className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 group-open:bg-slate-900 group-open:text-white">
+              Открыть проверку
+              <ChevronDown
+                className="transition-transform group-open:rotate-180"
+                size={16}
+                aria-hidden="true"
+              />
             </span>
           </div>
-          <p className="mt-2 text-sm text-slate-600">
-            {formatDateTime(event.occurredAt ?? event.startedAt)}
-          </p>
-          <div className="mt-4 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
-            <InfoLine label={`Ветка: ${event.branch}`} />
-            <InfoLine
-              label={
-                event.newCommitsCount === null
-                  ? "Количество новых коммитов не вычислялось"
-                  : `Новых коммитов: ${event.newCommitsCount}`
-              }
-            />
-            <InfoLine
-              label={
-                event.previousCommit
-                  ? `Старый коммит: ${shortCommit(event.previousCommit)}`
-                  : "Старый коммит отсутствует"
-              }
-            />
-            <InfoLine
-              label={
-                event.newCommit
-                  ? `Новый коммит: ${shortCommit(event.newCommit)}`
-                  : "Новый коммит отсутствует"
-              }
-            />
+        </summary>
+
+        <div className="border-t border-slate-200 bg-slate-50/70 p-5">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(22rem,0.75fr)]">
+            <div className="grid min-w-0 gap-4">
+              <UpdateEventContextPanel event={event} />
+              <AiReportsList event={event} />
+            </div>
+
+            <div className="grid min-w-0 content-start gap-4">
+              <UpdateEventActionsPanel
+                event={event}
+                studentId={studentId}
+                isPending={isPending}
+                formMessages={formMessages}
+                onRunAiAnalysis={onRunAiAnalysis}
+                onOpenCode={onOpenCode}
+                onUpdateStatus={onUpdateStatus}
+              />
+              <CommentsPanel
+                event={event}
+                studentId={studentId}
+                isPending={isPending}
+                formMessages={formMessages}
+                onAddComment={onAddComment}
+                onDeleteComment={onDeleteComment}
+                onUpdateComment={onUpdateComment}
+              />
+            </div>
           </div>
-          {event.error ? (
-            <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
-              {event.error}
-            </p>
-          ) : null}
         </div>
-
-        <details className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 lg:w-[28rem]">
-          <summary className="cursor-pointer font-medium text-slate-900">
-            Детали события
-          </summary>
-          <div className="mt-3 grid gap-2 border-b border-slate-200 pb-4">
-            <p>Репозиторий: {event.repositoryUrlSnapshot ?? "не указан"}</p>
-            <p>
-              Локальный путь: {event.projectLocalPathSnapshot ?? "не сохранен"}
-            </p>
-            <p>Статус события: {formatEventStatus(event.status)}</p>
-          </div>
-
-          <form className="mt-4 grid gap-2" onSubmit={onRunAiAnalysis}>
-            <input type="hidden" name="studentId" value={studentId} />
-            <input type="hidden" name="updateEventId" value={event.id} />
-            <button
-              type="submit"
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-              disabled={isPending || event.aiAnalysisDisabledReason !== null}
-              title={
-                event.aiAnalysisDisabledReason ??
-                "Запустить ИИ-анализ выбранного обновления"
-              }
-            >
-              <Bot size={16} aria-hidden="true" />
-              Запустить ИИ-анализ
-            </button>
-            {event.aiAnalysisDisabledReason ? (
-              <p className="text-sm text-slate-500">
-                {event.aiAnalysisDisabledReason}
-              </p>
-            ) : null}
-            <InlineFormMessage
-              message={formMessages[getAiAnalysisFormKey(event.id)]}
-            />
-          </form>
-
-          <AiReportsList event={event} />
-
-          <form className="mt-4 grid gap-2" onSubmit={onOpenCode}>
-            <input type="hidden" name="studentId" value={studentId} />
-            <input type="hidden" name="updateEventId" value={event.id} />
-            <button
-              type="submit"
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
-              disabled={isPending || event.newCommit === null}
-              title={
-                event.newCommit === null
-                  ? "У обновления нет известного коммита для открытия"
-                  : "Открыть код выбранного обновления в VS Code"
-              }
-            >
-              <FileCode2 size={16} aria-hidden="true" />
-              Открыть код
-            </button>
-            {event.newCommit === null ? (
-              <p className="text-sm text-slate-500">
-                Нет известного коммита для открытия.
-              </p>
-            ) : null}
-            <InlineFormMessage
-              message={formMessages[getOpenCodeFormKey(event.id)]}
-            />
-          </form>
-
-          <form className="mt-4 grid gap-2" onSubmit={onUpdateStatus}>
-            <input type="hidden" name="studentId" value={studentId} />
-            <input type="hidden" name="updateEventId" value={event.id} />
-            <label
-              className="text-xs font-semibold uppercase text-slate-500"
-              htmlFor={`status-${event.id}`}
-            >
-              Статус проверки
-            </label>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <select
-                id={`status-${event.id}`}
-                name="status"
-                defaultValue={event.reviewStatus}
-                className="min-h-10 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-teal-500"
-                disabled={isPending}
-              >
-                {reviewStatusOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="submit"
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-                disabled={isPending}
-              >
-                <Save size={16} aria-hidden="true" />
-                Статус
-              </button>
-            </div>
-            <InlineFormMessage
-              message={formMessages[getStatusFormKey(event.id)]}
-            />
-          </form>
-
-          <div className="mt-5 grid gap-3">
-            <div className="flex items-center justify-between gap-3">
-              <h4 className="font-semibold text-slate-950">Комментарии</h4>
-              <span className="text-xs text-slate-500">
-                {event.commentsCount}
-              </span>
-            </div>
-
-            <form className="grid gap-2" onSubmit={onAddComment}>
-              <input type="hidden" name="studentId" value={studentId} />
-              <input type="hidden" name="updateEventId" value={event.id} />
-              <input type="hidden" name="basedOnAiReportId" value="" />
-              <label
-                className="text-xs font-semibold uppercase text-slate-500"
-                htmlFor={`comment-${event.id}`}
-              >
-                Новый комментарий
-              </label>
-              <textarea
-                id={`comment-${event.id}`}
-                name="text"
-                rows={3}
-                className="min-h-24 resize-y rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-900 outline-none focus:border-teal-500"
-                placeholder="Комментарий по обновлению"
-                disabled={isPending}
-              />
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
-                  disabled={isPending}
-                >
-                  <Save size={16} aria-hidden="true" />
-                  Сохранить
-                </button>
-              </div>
-              <InlineFormMessage
-                message={formMessages[getAddCommentFormKey(event.id)]}
-              />
-            </form>
-
-            {event.comments.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">
-                Комментариев пока нет.
-              </p>
-            ) : (
-              <div className="grid gap-3">
-                {event.comments.map((comment) => (
-                  <div
-                    key={comment.id}
-                    className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3"
-                  >
-                    <form className="grid gap-2" onSubmit={onUpdateComment}>
-                      <input type="hidden" name="studentId" value={studentId} />
-                      <input
-                        type="hidden"
-                        name="commentId"
-                        value={comment.id}
-                      />
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
-                        <span>{formatDateTime(comment.createdAt)}</span>
-                        {comment.updatedAt !== comment.createdAt ? (
-                          <span>
-                            изменен {formatDateTime(comment.updatedAt)}
-                          </span>
-                        ) : null}
-                      </div>
-                      <textarea
-                        name="text"
-                        rows={3}
-                        defaultValue={comment.text}
-                        className="min-h-24 resize-y rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-900 outline-none focus:border-teal-500"
-                        disabled={isPending}
-                      />
-                      <div className="flex justify-end">
-                        <button
-                          type="submit"
-                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:border-slate-300 disabled:opacity-60"
-                          disabled={isPending}
-                        >
-                          <Save size={16} aria-hidden="true" />
-                          Сохранить
-                        </button>
-                      </div>
-                      <InlineFormMessage
-                        message={
-                          formMessages[getEditCommentFormKey(comment.id)]
-                        }
-                      />
-                    </form>
-                    <form
-                      className="flex justify-end"
-                      onSubmit={onDeleteComment}
-                    >
-                      <input type="hidden" name="studentId" value={studentId} />
-                      <input
-                        type="hidden"
-                        name="commentId"
-                        value={comment.id}
-                      />
-                      <input type="hidden" name="confirmed" value="true" />
-                      <button
-                        type="submit"
-                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-sm font-semibold text-red-700 hover:border-red-300 disabled:opacity-60"
-                        disabled={isPending}
-                      >
-                        <Trash2 size={16} aria-hidden="true" />
-                        Удалить
-                      </button>
-                    </form>
-                    <InlineFormMessage
-                      message={
-                        formMessages[getDeleteCommentFormKey(comment.id)]
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </details>
-      </div>
+      </details>
     </article>
   );
 }
 
-function AiReportsList({ event }: { event: UpdateEventListItem }) {
+function UpdateEventContextPanel({
+  event,
+}: {
+  event: UpdateEventListItem;
+}) {
   return (
-    <div className="mt-5 grid gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <h4 className="font-semibold text-slate-950">ИИ-рапорты</h4>
-        <span className="text-xs text-slate-500">{event.aiReportsCount}</span>
+    <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-950">
+            Контекст обновления
+          </p>
+          <p className="mt-1 text-sm text-slate-600">
+            {formatDateTime(event.occurredAt ?? event.startedAt)}
+          </p>
+        </div>
+        <span className="inline-flex min-h-7 items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-medium text-slate-700">
+          {formatEventStatus(event.status)}
+        </span>
+      </div>
+      <div className="mt-4 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
+        <InfoLine label={`Репозиторий: ${event.repositoryUrlSnapshot ?? "не указан"}`} />
+        <InfoLine
+          label={`Локальный путь: ${
+            event.projectLocalPathSnapshot ?? "не сохранен"
+          }`}
+        />
+        <InfoLine label={`Ветка: ${event.branch}`} />
+        <InfoLine
+          label={
+            event.newCommitsCount === null
+              ? "Количество новых коммитов не вычислялось"
+              : `Новых коммитов: ${event.newCommitsCount}`
+          }
+        />
+        <InfoLine
+          label={
+            event.previousCommit
+              ? `Старый коммит: ${shortCommit(event.previousCommit)}`
+              : "Старый коммит отсутствует"
+          }
+        />
+        <InfoLine
+          label={
+            event.newCommit
+              ? `Новый коммит: ${shortCommit(event.newCommit)}`
+              : "Новый коммит отсутствует"
+          }
+        />
+      </div>
+      {event.error ? (
+        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+          {event.error}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function UpdateEventActionsPanel({
+  event,
+  studentId,
+  isPending,
+  formMessages,
+  onRunAiAnalysis,
+  onOpenCode,
+  onUpdateStatus,
+}: {
+  event: UpdateEventListItem;
+  studentId: string;
+  isPending: boolean;
+  formMessages: Record<string, StudentActionState | undefined>;
+  onRunAiAnalysis: (event: FormEvent<HTMLFormElement>) => void;
+  onOpenCode: (event: FormEvent<HTMLFormElement>) => void;
+  onUpdateStatus: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h4 className="font-semibold text-slate-950">Действия проверки</h4>
+        <span className="text-sm text-slate-600">{event.reviewStatusLabel}</span>
       </div>
 
-      {event.aiReports.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">
-          ИИ-рапортов пока нет.
+      <form className="mt-4 grid gap-2" onSubmit={onRunAiAnalysis}>
+        <input type="hidden" name="studentId" value={studentId} />
+        <input type="hidden" name="updateEventId" value={event.id} />
+        <button
+          type="submit"
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+          disabled={isPending || event.aiAnalysisDisabledReason !== null}
+          title={
+            event.aiAnalysisDisabledReason ??
+            "Запустить ИИ-анализ выбранного обновления"
+          }
+        >
+          <Bot size={16} aria-hidden="true" />
+          Запустить ИИ-анализ
+        </button>
+        {event.aiAnalysisDisabledReason ? (
+          <p className="text-sm text-slate-500">
+            {event.aiAnalysisDisabledReason}
+          </p>
+        ) : null}
+        <InlineFormMessage
+          message={formMessages[getAiAnalysisFormKey(event.id)]}
+        />
+      </form>
+
+      <form className="mt-4 grid gap-2" onSubmit={onOpenCode}>
+        <input type="hidden" name="studentId" value={studentId} />
+        <input type="hidden" name="updateEventId" value={event.id} />
+        <button
+          type="submit"
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+          disabled={isPending || event.newCommit === null}
+          title={
+            event.newCommit === null
+              ? "У обновления нет известного коммита для открытия"
+              : "Открыть код выбранного обновления в VS Code"
+          }
+        >
+          <FileCode2 size={16} aria-hidden="true" />
+          Открыть код
+        </button>
+        {event.newCommit === null ? (
+          <p className="text-sm text-slate-500">
+            Нет известного коммита для открытия.
+          </p>
+        ) : null}
+        <InlineFormMessage message={formMessages[getOpenCodeFormKey(event.id)]} />
+      </form>
+
+      <form className="mt-4 grid gap-2" onSubmit={onUpdateStatus}>
+        <input type="hidden" name="studentId" value={studentId} />
+        <input type="hidden" name="updateEventId" value={event.id} />
+        <label
+          className="text-xs font-semibold uppercase text-slate-500"
+          htmlFor={`status-${event.id}`}
+        >
+          Статус проверки
+        </label>
+        <div className="flex flex-col gap-2 sm:flex-row xl:flex-col 2xl:flex-row">
+          <select
+            id={`status-${event.id}`}
+            name="status"
+            defaultValue={event.reviewStatus}
+            className="min-h-10 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-teal-500"
+            disabled={isPending}
+          >
+            {reviewStatusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+            disabled={isPending}
+          >
+            <Save size={16} aria-hidden="true" />
+            Статус
+          </button>
+        </div>
+        <InlineFormMessage message={formMessages[getStatusFormKey(event.id)]} />
+      </form>
+    </section>
+  );
+}
+
+function CommentsPanel({
+  event,
+  studentId,
+  isPending,
+  formMessages,
+  onAddComment,
+  onDeleteComment,
+  onUpdateComment,
+}: {
+  event: UpdateEventListItem;
+  studentId: string;
+  isPending: boolean;
+  formMessages: Record<string, StudentActionState | undefined>;
+  onAddComment: (event: FormEvent<HTMLFormElement>) => void;
+  onDeleteComment: (event: FormEvent<HTMLFormElement>) => void;
+  onUpdateComment: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="font-semibold text-slate-950">Комментарии</h4>
+        <span className="text-xs text-slate-500">{event.commentsCount}</span>
+      </div>
+
+      <form className="mt-4 grid gap-2" onSubmit={onAddComment}>
+        <input type="hidden" name="studentId" value={studentId} />
+        <input type="hidden" name="updateEventId" value={event.id} />
+        <input type="hidden" name="basedOnAiReportId" value="" />
+        <label
+          className="text-xs font-semibold uppercase text-slate-500"
+          htmlFor={`comment-${event.id}`}
+        >
+          Новый комментарий
+        </label>
+        <textarea
+          id={`comment-${event.id}`}
+          name="text"
+          rows={3}
+          className="min-h-24 resize-y rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-900 outline-none focus:border-teal-500"
+          placeholder="Комментарий по обновлению"
+          disabled={isPending}
+        />
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+            disabled={isPending}
+          >
+            <Save size={16} aria-hidden="true" />
+            Сохранить
+          </button>
+        </div>
+        <InlineFormMessage message={formMessages[getAddCommentFormKey(event.id)]} />
+      </form>
+
+      {event.comments.length === 0 ? (
+        <p className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">
+          Комментариев пока нет.
         </p>
       ) : (
-        <div className="grid gap-3">
-          {event.aiReports.map((report) => (
-            <article
-              key={report.id}
-              className="rounded-lg border border-slate-200 bg-white p-3"
+        <div className="mt-4 grid gap-3">
+          {event.comments.map((comment) => (
+            <div
+              key={comment.id}
+              className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3"
             >
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex min-h-7 items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-medium text-slate-700">
-                  {formatAiReportStatus(report.status)}
-                </span>
-                <span className="text-xs text-slate-500">
-                  {formatAiAnalysisMode(report.analysisMode)}
-                </span>
-                <span className="text-xs text-slate-500">
-                  {formatDateTime(report.startedAt)}
-                </span>
-              </div>
-              {report.summary ? (
-                <p className="mt-3 text-sm font-medium text-slate-900">
-                  {report.summary}
-                </p>
-              ) : null}
-              {report.error ? (
-                <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
-                  {report.error}
-                </p>
-              ) : null}
-              {report.changes ? (
-                <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800">
-                  <p className="font-semibold text-slate-950">
-                    Что добавлено
-                  </p>
-                  <p className="mt-2 whitespace-pre-wrap break-words">
-                    {report.changes}
-                  </p>
+              <form className="grid gap-2" onSubmit={onUpdateComment}>
+                <input type="hidden" name="studentId" value={studentId} />
+                <input type="hidden" name="commentId" value={comment.id} />
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                  <span>{formatDateTime(comment.createdAt)}</span>
+                  {comment.updatedAt !== comment.createdAt ? (
+                    <span>изменен {formatDateTime(comment.updatedAt)}</span>
+                  ) : null}
                 </div>
-              ) : null}
-              {report.risks.length > 0 ? (
-                <CompactList
-                  title="Что быстро проверить"
-                  items={report.risks}
+                <textarea
+                  name="text"
+                  rows={3}
+                  defaultValue={comment.text}
+                  className="min-h-24 resize-y rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-900 outline-none focus:border-teal-500"
+                  disabled={isPending}
                 />
-              ) : null}
-              {report.manualReviewQuestions.length > 0 ? (
-                <CompactList
-                  title="Вопросы студенту"
-                  items={report.manualReviewQuestions}
-                />
-              ) : null}
-              {report.teacherCommentDraft ? (
-                <div className="mt-3 rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm text-teal-950">
-                  <p className="font-semibold">Черновик комментария</p>
-                  <p className="mt-2 whitespace-pre-wrap">
-                    {report.teacherCommentDraft}
-                  </p>
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:border-slate-300 disabled:opacity-60"
+                    disabled={isPending}
+                  >
+                    <Save size={16} aria-hidden="true" />
+                    Сохранить
+                  </button>
                 </div>
-              ) : null}
-              <TechnicalReference report={report} />
-              {report.fullText ? (
-                <details className="mt-3 text-xs text-slate-600">
-                  <summary className="cursor-pointer font-medium text-slate-700">
-                    Полный текст рапорта
-                  </summary>
-                  <p className="mt-2 whitespace-pre-wrap break-words">
-                    {report.fullText}
-                  </p>
-                </details>
-              ) : null}
-            </article>
+                <InlineFormMessage
+                  message={formMessages[getEditCommentFormKey(comment.id)]}
+                />
+              </form>
+              <form className="flex justify-end" onSubmit={onDeleteComment}>
+                <input type="hidden" name="studentId" value={studentId} />
+                <input type="hidden" name="commentId" value={comment.id} />
+                <input type="hidden" name="confirmed" value="true" />
+                <button
+                  type="submit"
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-sm font-semibold text-red-700 hover:border-red-300 disabled:opacity-60"
+                  disabled={isPending}
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                  Удалить
+                </button>
+              </form>
+              <InlineFormMessage
+                message={formMessages[getDeleteCommentFormKey(comment.id)]}
+              />
+            </div>
           ))}
         </div>
       )}
-    </div>
+    </section>
+  );
+}
+
+function AiReportsList({ event }: { event: UpdateEventListItem }) {
+  const [primaryReport, ...olderReports] = event.aiReports;
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h4 className="font-semibold text-slate-950">ИИ-рапорт</h4>
+          <p className="mt-1 text-sm text-slate-600">
+            Последний рапорт показан как основной материал проверки.
+          </p>
+        </div>
+        <span className="text-xs text-slate-500">{event.aiReportsCount}</span>
+      </div>
+
+      {primaryReport === undefined ? (
+        <p className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">
+          ИИ-рапортов пока нет.
+        </p>
+      ) : (
+        <>
+          <AiReportCard report={primaryReport} variant="primary" />
+          {olderReports.length > 0 ? (
+            <details className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+              <summary className="cursor-pointer font-medium text-slate-900">
+                Старые ИИ-рапорты: {olderReports.length}
+              </summary>
+              <div className="mt-3 grid gap-3">
+                {olderReports.map((report) => (
+                  <AiReportCard
+                    key={report.id}
+                    report={report}
+                    variant="secondary"
+                  />
+                ))}
+              </div>
+            </details>
+          ) : null}
+        </>
+      )}
+    </section>
+  );
+}
+
+function AiReportCard({
+  report,
+  variant,
+}: {
+  report: UpdateEventListItem["aiReports"][number];
+  variant: "primary" | "secondary";
+}) {
+  return (
+    <article
+      className={[
+        "mt-4 rounded-lg border border-slate-200 bg-white",
+        variant === "primary" ? "p-4" : "p-3",
+      ].join(" ")}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex min-h-7 items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-medium text-slate-700">
+          {formatAiReportStatus(report.status)}
+        </span>
+        <span className="text-xs text-slate-500">
+          {formatAiAnalysisMode(report.analysisMode)}
+        </span>
+        <span className="text-xs text-slate-500">
+          {formatDateTime(report.startedAt)}
+        </span>
+      </div>
+      {report.summary ? (
+        <p className="mt-3 text-sm font-medium text-slate-900">
+          {report.summary}
+        </p>
+      ) : null}
+      {report.error ? (
+        <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+          {report.error}
+        </p>
+      ) : null}
+      {report.changes ? (
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800">
+          <p className="font-semibold text-slate-950">Что добавлено</p>
+          <p className="mt-2 whitespace-pre-wrap break-words">
+            {report.changes}
+          </p>
+        </div>
+      ) : null}
+      <div className="grid gap-3 lg:grid-cols-2">
+        {report.risks.length > 0 ? (
+          <CompactList title="Что быстро проверить" items={report.risks} />
+        ) : null}
+        {report.manualReviewQuestions.length > 0 ? (
+          <CompactList
+            title="Вопросы студенту"
+            items={report.manualReviewQuestions}
+          />
+        ) : null}
+      </div>
+      {report.teacherCommentDraft ? (
+        <div className="mt-3 rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm text-teal-950">
+          <p className="font-semibold">Черновик комментария</p>
+          <p className="mt-2 whitespace-pre-wrap">
+            {report.teacherCommentDraft}
+          </p>
+        </div>
+      ) : null}
+      <TechnicalReference report={report} />
+      {report.fullText ? (
+        <details className="mt-3 text-xs text-slate-600">
+          <summary className="cursor-pointer font-medium text-slate-700">
+            Полный текст рапорта
+          </summary>
+          <p className="mt-2 whitespace-pre-wrap break-words">
+            {report.fullText}
+          </p>
+        </details>
+      ) : null}
+    </article>
   );
 }
 
