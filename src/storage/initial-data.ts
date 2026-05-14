@@ -2,6 +2,7 @@ import type {
   AiReportsFile,
   AppSettings,
   CommentsFile,
+  DiagnosticsStatus,
   ProjectsFile,
   ReviewStatusesFile,
   SettingsFile,
@@ -17,6 +18,17 @@ function createInitialTool(command: string) {
     status: "unknown" as const,
     version: null,
     message: null,
+    details: null,
+    authStatus: "not_applicable" as const,
+    checkedAt: null,
+  };
+}
+
+function createInitialPathDiagnostics() {
+  return {
+    status: "unknown" as DiagnosticsStatus,
+    message: null,
+    details: null,
     checkedAt: null,
   };
 }
@@ -28,6 +40,14 @@ export function createInitialSettings(): AppSettings {
     repositoriesPath: "repositories",
     reviewCopiesPath: "review-copies",
     backupsPath: "backups",
+    paths: {
+      dataRoot: createInitialPathDiagnostics(),
+      appData: createInitialPathDiagnostics(),
+      repositories: createInitialPathDiagnostics(),
+      reviewCopies: createInitialPathDiagnostics(),
+      backups: createInitialPathDiagnostics(),
+      settingsFile: createInitialPathDiagnostics(),
+    },
     tools: {
       git: createInitialTool("git"),
       gh: createInitialTool("gh"),

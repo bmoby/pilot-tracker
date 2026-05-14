@@ -93,7 +93,12 @@ export const updateRunSchema = z.object({
 });
 export type UpdateRun = z.infer<typeof updateRunSchema>;
 
-export const updateEventStatusSchema = z.enum(["running", "completed", "failed", "interrupted"]);
+export const updateEventStatusSchema = z.enum([
+  "running",
+  "completed",
+  "failed",
+  "interrupted",
+]);
 export type UpdateEventStatus = z.infer<typeof updateEventStatusSchema>;
 
 export const updateEventResultSchema = z.enum([
@@ -227,12 +232,31 @@ export const toolDiagnosticsStatusSchema = z.enum([
   "warning",
   "error",
 ]);
+export type DiagnosticsStatus = z.infer<typeof toolDiagnosticsStatusSchema>;
+
+export const toolAuthStatusSchema = z.enum([
+  "not_applicable",
+  "unknown",
+  "authenticated",
+  "unauthenticated",
+]);
+export type ToolAuthStatus = z.infer<typeof toolAuthStatusSchema>;
+
+export const pathDiagnosticsSchema = z.object({
+  status: toolDiagnosticsStatusSchema,
+  message: z.string().nullable(),
+  details: z.string().nullable().optional().default(null),
+  checkedAt: isoUtcDateSchema.nullable(),
+});
+export type PathDiagnostics = z.infer<typeof pathDiagnosticsSchema>;
 
 export const toolSettingsSchema = z.object({
   command: z.string().trim().min(1),
   status: toolDiagnosticsStatusSchema,
   version: z.string().nullable(),
   message: z.string().nullable(),
+  details: z.string().nullable().optional().default(null),
+  authStatus: toolAuthStatusSchema.optional().default("not_applicable"),
   checkedAt: isoUtcDateSchema.nullable(),
 });
 
@@ -242,6 +266,16 @@ export const settingsSchema = z.object({
   repositoriesPath: z.literal("repositories"),
   reviewCopiesPath: z.literal("review-copies"),
   backupsPath: z.literal("backups"),
+  paths: z
+    .object({
+      dataRoot: pathDiagnosticsSchema,
+      appData: pathDiagnosticsSchema,
+      repositories: pathDiagnosticsSchema,
+      reviewCopies: pathDiagnosticsSchema,
+      backups: pathDiagnosticsSchema,
+      settingsFile: pathDiagnosticsSchema,
+    })
+    .optional(),
   tools: z.object({
     git: toolSettingsSchema,
     gh: toolSettingsSchema,
