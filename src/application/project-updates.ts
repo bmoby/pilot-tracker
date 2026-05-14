@@ -83,6 +83,7 @@ export type AiReportListItem = {
   teacherCommentDraft: string | null;
   fullText: string | null;
   pullRequestContext: AiPullRequestContext;
+  technicalDetails: string | null;
   error: string | null;
 };
 
@@ -779,6 +780,7 @@ function toAiReportListItem(report: AiReport): AiReportListItem {
     teacherCommentDraft: report.teacherCommentDraft,
     fullText: report.fullText,
     pullRequestContext: report.pullRequestContext,
+    technicalDetails: report.technicalDetails,
     error: report.error,
   };
 }
@@ -793,6 +795,19 @@ function getAiAnalysisDisabledReason(
 
   if (event.projectLocalPathSnapshot === null) {
     return "Нет локального пути проекта для ИИ-анализа.";
+  }
+
+  if (event.result === "updated_no_changes" || !event.hasNewChanges) {
+    if (event.result !== "cloned") {
+      return "В этом обновлении нет новой работы студента для ИИ-анализа.";
+    }
+  }
+
+  if (
+    event.result !== "cloned" &&
+    event.result !== "updated_with_changes"
+  ) {
+    return "ИИ-анализ доступен только для первой загрузки или обновления с новыми коммитами.";
   }
 
   const codex = data.settingsFile.settings.tools.codex;

@@ -208,6 +208,14 @@ function getBlockedReason(data: AppData, event: UpdateEvent): AppError | null {
     };
   }
 
+  if (!canAnalyzeUpdateEvent(event)) {
+    return {
+      code: "ai_analysis_no_new_student_work",
+      message:
+        "ИИ-анализ недоступен: в этом обновлении нет новой работы студента.",
+    };
+  }
+
   const codex = data.settingsFile.settings.tools.codex;
 
   if (codex.status === "error") {
@@ -220,6 +228,21 @@ function getBlockedReason(data: AppData, event: UpdateEvent): AppError | null {
   }
 
   return null;
+}
+
+function canAnalyzeUpdateEvent(event: UpdateEvent): boolean {
+  if (event.result === "cloned" && event.previousCommit === null) {
+    return true;
+  }
+
+  return (
+    event.result === "updated_with_changes" &&
+    event.previousCommit !== null &&
+    event.newCommit !== null &&
+    event.previousCommit !== event.newCommit &&
+    event.newCommitsCount !== null &&
+    event.newCommitsCount > 0
+  );
 }
 
 function createRunningReport(data: AppData, event: UpdateEvent): AiReport {
@@ -364,7 +387,11 @@ type GitContext = {
 const codexOutputSchema = z.object({
   summary: z.string().trim().min(1).catch("ИИ не вернул краткое резюме."),
   importantFiles: z.array(z.string()).catch([]),
-  changes: z.string().trim().min(1).catch("ИИ не вернул описание изменений."),
+  changes: z
+    .string()
+    .trim()
+    .min(1)
+    .catch("ИИ не вернул описание добавленной функциональности."),
   risks: z.array(z.string()).catch([]),
   manualReviewQuestions: z.array(z.string()).catch([]),
   teacherCommentDraft: z.string().trim().min(1).catch(""),
@@ -516,8 +543,19 @@ function buildPrompt({
     "Ты помогаешь преподавателю проверить учебный проект студента.",
     "Нельзя изменять файлы, создавать коммиты, делать push, публиковать комментарии в GitHub или выставлять итоговый статус проверки.",
     "Выводы ИИ являются подсказкой и должны быть проверены преподавателем.",
+    "Пиши простым человеческим языком для преподавателя. Не превращай рапорт в технический пересказ diff, файлов, библиотек или внутренней структуры проекта.",
+    "Главная задача рапорта: быстро объяснить, что студент добавил как функциональность или видимое поведение, что можно быстро проверить руками, какие вопросы задать студенту и какой комментарий можно оставить.",
+    "Не добавляй отдельные разделы про влияние обновления на проект или направление движения студента.",
+    "Технические детали используй только как источник проверки. Файлы можно перечислить в importantFiles, но основной текст должен быть про смысл работы.",
     "",
     "Верни только JSON, соответствующий переданной схеме результата.",
+    "Поля результата заполняй так:",
+    "- summary: 2-4 предложения простым языком.",
+    "- changes: что добавлено как функциональность или видимое поведение проекта. Не перечисляй файлы без объяснения смысла.",
+    "- risks: короткий список того, что преподавателю стоит быстро проверить руками.",
+    "- manualReviewQuestions: вопросы, которые стоит задать студенту.",
+    "- teacherCommentDraft: черновик комментария преподавателя, не финальная оценка.",
+    "- importantFiles: техническая справка для углубления, если преподаватель решит открыть код.",
     "",
     "Данные студента и проекта:",
     JSON.stringify(
@@ -545,7 +583,7 @@ function buildPrompt({
         previousAiReports: previousReports.map((item) => ({
           status: item.status,
           summary: item.summary,
-          risks: item.risks,
+          quickChecks: item.risks,
           createdAt: item.createdAt,
         })),
       },
@@ -563,7 +601,9 @@ function buildPrompt({
       ? context.diff || "Нет данных diff."
       : context.files || "Нет списка файлов.",
     "",
-    "Сформируй стандартный ИИ-рапорт: краткое резюме, важные файлы, изменения или текущее устройство проекта, риски, вопросы для ручной проверки, черновик комментария преподавателя.",
+    report.analysisMode === "changes_between_commits"
+      ? "Сформируй стандартный ИИ-рапорт по новой работе студента: краткое резюме, что добавлено как функциональность, что быстро проверить руками, вопросы студенту и черновик комментария преподавателя."
+      : "Сформируй стандартный ИИ-рапорт по первой загрузке проекта: краткое резюме, что уже можно увидеть или попробовать, что быстро проверить руками, вопросы студенту и черновик комментария преподавателя.",
     "Если анализируется текущее состояние проекта, заполни projectDescription. Если анализируется диапазон изменений и описание проекта менять не нужно, верни projectDescription: null.",
   ].join("\n");
 }
@@ -572,9 +612,11 @@ function buildFullText(output: CodexOutput): string {
   return [
     output.summary,
     output.changes,
-    output.risks.length > 0 ? `Риски: ${output.risks.join("; ")}` : null,
+    output.risks.length > 0
+      ? `Что быстро проверить: ${output.risks.join("; ")}`
+      : null,
     output.manualReviewQuestions.length > 0
-      ? `Вопросы: ${output.manualReviewQuestions.join("; ")}`
+      ? `Вопросы студенту: ${output.manualReviewQuestions.join("; ")}`
       : null,
     output.teacherCommentDraft
       ? `Черновик: ${output.teacherCommentDraft}`
