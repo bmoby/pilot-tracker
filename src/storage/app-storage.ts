@@ -21,7 +21,12 @@ import {
   createInitialUpdateEventsFile,
   createInitialUpdateRunsFile,
 } from "./initial-data";
-import { ensureDirectory, pathExists, readJsonFile, safeWriteJsonFile } from "./file-system";
+import {
+  ensureDirectory,
+  pathExists,
+  readJsonFile,
+  safeWriteJsonFile,
+} from "./file-system";
 import { createStorageError } from "./storage-error";
 
 type AppFileKey = keyof AppData;
@@ -120,8 +125,14 @@ export class AppStorage {
     await this.initialize();
 
     const data: AppData = {
-      studentsFile: await readJsonFile(this.getFilePath("students.json"), studentsFileSchema),
-      projectsFile: await readJsonFile(this.getFilePath("projects.json"), projectsFileSchema),
+      studentsFile: await readJsonFile(
+        this.getFilePath("students.json"),
+        studentsFileSchema,
+      ),
+      projectsFile: await readJsonFile(
+        this.getFilePath("projects.json"),
+        projectsFileSchema,
+      ),
       updateRunsFile: await readJsonFile(
         this.getFilePath("update-runs.json"),
         updateRunsFileSchema,
@@ -130,13 +141,22 @@ export class AppStorage {
         this.getFilePath("update-events.json"),
         updateEventsFileSchema,
       ),
-      commentsFile: await readJsonFile(this.getFilePath("comments.json"), commentsFileSchema),
+      commentsFile: await readJsonFile(
+        this.getFilePath("comments.json"),
+        commentsFileSchema,
+      ),
       reviewStatusesFile: await readJsonFile(
         this.getFilePath("review-statuses.json"),
         reviewStatusesFileSchema,
       ),
-      aiReportsFile: await readJsonFile(this.getFilePath("ai-reports.json"), aiReportsFileSchema),
-      settingsFile: await readJsonFile(this.getFilePath("settings.json"), settingsFileSchema),
+      aiReportsFile: await readJsonFile(
+        this.getFilePath("ai-reports.json"),
+        aiReportsFileSchema,
+      ),
+      settingsFile: await readJsonFile(
+        this.getFilePath("settings.json"),
+        settingsFileSchema,
+      ),
     };
     validateAppDataConsistency(data);
 
@@ -172,7 +192,11 @@ export class AppStorage {
       const filePath = this.getFilePath(definition.fileName);
 
       if (!(await pathExists(filePath))) {
-        await safeWriteJsonFile(filePath, definition.createInitialData(), definition.schema);
+        await safeWriteJsonFile(
+          filePath,
+          definition.createInitialData(),
+          definition.schema,
+        );
       }
     }
   }
@@ -185,16 +209,31 @@ export class AppStorage {
 const appFileKeys = Object.keys(APP_FILE_DEFINITIONS) as AppFileKey[];
 
 function validateAppDataConsistency(data: AppData): void {
-  const studentIds = new Set(data.studentsFile.students.map((student) => student.id));
-  const projectIds = new Set(data.projectsFile.projects.map((project) => project.id));
-  const updateRunIds = new Set(data.updateRunsFile.updateRuns.map((run) => run.id));
-  const updateEventIds = new Set(data.updateEventsFile.updateEvents.map((event) => event.id));
-  const commentIds = new Set(data.commentsFile.comments.map((comment) => comment.id));
+  const studentIds = new Set(
+    data.studentsFile.students.map((student) => student.id),
+  );
+  const projectIds = new Set(
+    data.projectsFile.projects.map((project) => project.id),
+  );
+  const updateRunIds = new Set(
+    data.updateRunsFile.updateRuns.map((run) => run.id),
+  );
+  const updateEventIds = new Set(
+    data.updateEventsFile.updateEvents.map((event) => event.id),
+  );
+  const commentIds = new Set(
+    data.commentsFile.comments.map((comment) => comment.id),
+  );
+  const aiReportIds = new Set(
+    data.aiReportsFile.aiReports.map((report) => report.id),
+  );
   const reviewStatusIds = new Set(
     data.reviewStatusesFile.reviewStatuses.map((status) => status.id),
   );
   const reviewStatusEventIds = new Set(
-    data.reviewStatusesFile.reviewStatuses.map((status) => status.updateEventId),
+    data.reviewStatusesFile.reviewStatuses.map(
+      (status) => status.updateEventId,
+    ),
   );
 
   if (studentIds.size !== data.studentsFile.students.length) {
@@ -232,7 +271,9 @@ function validateAppDataConsistency(data: AppData): void {
     );
   }
 
-  if (reviewStatusEventIds.size !== data.reviewStatusesFile.reviewStatuses.length) {
+  if (
+    reviewStatusEventIds.size !== data.reviewStatusesFile.reviewStatuses.length
+  ) {
     throw createStorageError(
       "storage_consistency_error",
       "Для одного события обновления найдено несколько статусов проверки.",
@@ -246,8 +287,17 @@ function validateAppDataConsistency(data: AppData): void {
     );
   }
 
+  if (aiReportIds.size !== data.aiReportsFile.aiReports.length) {
+    throw createStorageError(
+      "storage_consistency_error",
+      "В ИИ-рапортах найдены повторяющиеся идентификаторы.",
+    );
+  }
+
   for (const student of data.studentsFile.students) {
-    const project = data.projectsFile.projects.find((item) => item.id === student.projectId);
+    const project = data.projectsFile.projects.find(
+      (item) => item.id === student.projectId,
+    );
 
     if (project === undefined) {
       throw createStorageError(
@@ -257,7 +307,10 @@ function validateAppDataConsistency(data: AppData): void {
     }
 
     if (project.studentId !== student.id) {
-      throw createStorageError("storage_consistency_error", "Связь студента и проекта нарушена.");
+      throw createStorageError(
+        "storage_consistency_error",
+        "Связь студента и проекта нарушена.",
+      );
     }
   }
 
@@ -269,10 +322,18 @@ function validateAppDataConsistency(data: AppData): void {
       );
     }
 
-    const student = data.studentsFile.students.find((item) => item.id === event.studentId);
-    const project = data.projectsFile.projects.find((item) => item.id === event.projectId);
+    const student = data.studentsFile.students.find(
+      (item) => item.id === event.studentId,
+    );
+    const project = data.projectsFile.projects.find(
+      (item) => item.id === event.projectId,
+    );
 
-    if (student === undefined || project === undefined || project.studentId !== student.id) {
+    if (
+      student === undefined ||
+      project === undefined ||
+      project.studentId !== student.id
+    ) {
       throw createStorageError(
         "storage_consistency_error",
         "Событие обновления ссылается на отсутствующего студента или проект.",
@@ -281,7 +342,9 @@ function validateAppDataConsistency(data: AppData): void {
   }
 
   for (const status of data.reviewStatusesFile.reviewStatuses) {
-    const event = data.updateEventsFile.updateEvents.find((item) => item.id === status.updateEventId);
+    const event = data.updateEventsFile.updateEvents.find(
+      (item) => item.id === status.updateEventId,
+    );
 
     if (event === undefined) {
       throw createStorageError(
@@ -290,7 +353,10 @@ function validateAppDataConsistency(data: AppData): void {
       );
     }
 
-    if (event.studentId !== status.studentId || event.projectId !== status.projectId) {
+    if (
+      event.studentId !== status.studentId ||
+      event.projectId !== status.projectId
+    ) {
       throw createStorageError(
         "storage_consistency_error",
         "Связь статуса проверки и события обновления нарушена.",
@@ -310,10 +376,36 @@ function validateAppDataConsistency(data: AppData): void {
       );
     }
 
-    if (event.studentId !== comment.studentId || event.projectId !== comment.projectId) {
+    if (
+      event.studentId !== comment.studentId ||
+      event.projectId !== comment.projectId
+    ) {
       throw createStorageError(
         "storage_consistency_error",
         "Связь комментария проверки и события обновления нарушена.",
+      );
+    }
+  }
+
+  for (const report of data.aiReportsFile.aiReports) {
+    const event = data.updateEventsFile.updateEvents.find(
+      (item) => item.id === report.updateEventId,
+    );
+
+    if (event === undefined) {
+      throw createStorageError(
+        "storage_consistency_error",
+        "ИИ-рапорт ссылается на отсутствующее событие обновления.",
+      );
+    }
+
+    if (
+      event.studentId !== report.studentId ||
+      event.projectId !== report.projectId
+    ) {
+      throw createStorageError(
+        "storage_consistency_error",
+        "Связь ИИ-рапорта и события обновления нарушена.",
       );
     }
   }

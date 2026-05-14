@@ -1,7 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { updateAllProjects, updateSingleProject } from "@/application/project-updates";
+import { runAiAnalysisForUpdate } from "@/application/ai-analysis";
+import {
+  updateAllProjects,
+  updateSingleProject,
+} from "@/application/project-updates";
 import { openUpdateCodeInVsCode } from "@/application/review-code";
 import {
   addReviewComment,
@@ -9,14 +13,20 @@ import {
   updateReviewComment,
   updateReviewStatus,
 } from "@/application/review";
-import { createStudent, deleteStudent, updateStudent } from "@/application/students";
+import {
+  createStudent,
+  deleteStudent,
+  updateStudent,
+} from "@/application/students";
 
 export type StudentActionState = {
   ok: boolean;
   message: string;
 };
 
-export async function createStudentAction(formData: FormData): Promise<StudentActionState> {
+export async function createStudentAction(
+  formData: FormData,
+): Promise<StudentActionState> {
   const result = await createStudent({
     displayName: getFormString(formData, "displayName"),
     notes: getFormString(formData, "notes"),
@@ -38,7 +48,9 @@ export async function createStudentAction(formData: FormData): Promise<StudentAc
   };
 }
 
-export async function updateStudentAction(formData: FormData): Promise<StudentActionState> {
+export async function updateStudentAction(
+  formData: FormData,
+): Promise<StudentActionState> {
   const result = await updateStudent({
     studentId: getFormString(formData, "studentId"),
     displayName: getFormString(formData, "displayName"),
@@ -61,7 +73,9 @@ export async function updateStudentAction(formData: FormData): Promise<StudentAc
   };
 }
 
-export async function deleteStudentAction(formData: FormData): Promise<StudentActionState> {
+export async function deleteStudentAction(
+  formData: FormData,
+): Promise<StudentActionState> {
   const result = await deleteStudent({
     studentId: getFormString(formData, "studentId"),
     confirmed: getFormString(formData, "confirmed") === "true",
@@ -100,7 +114,9 @@ export async function updateAllProjectsAction(): Promise<StudentActionState> {
   };
 }
 
-export async function updateSingleProjectAction(formData: FormData): Promise<StudentActionState> {
+export async function updateSingleProjectAction(
+  formData: FormData,
+): Promise<StudentActionState> {
   const studentId = getFormString(formData, "studentId");
   const result = await updateSingleProject(studentId);
 
@@ -120,7 +136,9 @@ export async function updateSingleProjectAction(formData: FormData): Promise<Stu
   };
 }
 
-export async function addReviewCommentAction(formData: FormData): Promise<StudentActionState> {
+export async function addReviewCommentAction(
+  formData: FormData,
+): Promise<StudentActionState> {
   const studentId = getFormString(formData, "studentId");
   const result = await addReviewComment({
     updateEventId: getFormString(formData, "updateEventId"),
@@ -144,7 +162,9 @@ export async function addReviewCommentAction(formData: FormData): Promise<Studen
   };
 }
 
-export async function updateReviewCommentAction(formData: FormData): Promise<StudentActionState> {
+export async function updateReviewCommentAction(
+  formData: FormData,
+): Promise<StudentActionState> {
   const studentId = getFormString(formData, "studentId");
   const result = await updateReviewComment({
     commentId: getFormString(formData, "commentId"),
@@ -167,7 +187,9 @@ export async function updateReviewCommentAction(formData: FormData): Promise<Stu
   };
 }
 
-export async function deleteReviewCommentAction(formData: FormData): Promise<StudentActionState> {
+export async function deleteReviewCommentAction(
+  formData: FormData,
+): Promise<StudentActionState> {
   const studentId = getFormString(formData, "studentId");
   const result = await deleteReviewComment({
     commentId: getFormString(formData, "commentId"),
@@ -190,7 +212,9 @@ export async function deleteReviewCommentAction(formData: FormData): Promise<Stu
   };
 }
 
-export async function updateReviewStatusAction(formData: FormData): Promise<StudentActionState> {
+export async function updateReviewStatusAction(
+  formData: FormData,
+): Promise<StudentActionState> {
   const studentId = getFormString(formData, "studentId");
   const result = await updateReviewStatus({
     updateEventId: getFormString(formData, "updateEventId"),
@@ -213,7 +237,9 @@ export async function updateReviewStatusAction(formData: FormData): Promise<Stud
   };
 }
 
-export async function openUpdateCodeAction(formData: FormData): Promise<StudentActionState> {
+export async function openUpdateCodeAction(
+  formData: FormData,
+): Promise<StudentActionState> {
   const studentId = getFormString(formData, "studentId");
   const result = await openUpdateCodeInVsCode({
     updateEventId: getFormString(formData, "updateEventId"),
@@ -233,6 +259,33 @@ export async function openUpdateCodeAction(formData: FormData): Promise<StudentA
   return {
     ok: true,
     message: `Код открыт в VS Code. Review-копия: ${result.value.reviewCopyPath}`,
+  };
+}
+
+export async function runAiAnalysisAction(
+  formData: FormData,
+): Promise<StudentActionState> {
+  const studentId = getFormString(formData, "studentId");
+  const result = await runAiAnalysisForUpdate({
+    updateEventId: getFormString(formData, "updateEventId"),
+  });
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      message: result.error.message,
+    };
+  }
+
+  revalidatePath("/");
+  revalidatePath(`/students/${result.value.studentId || studentId}`);
+
+  return {
+    ok: true,
+    message:
+      result.value.status === "ready"
+        ? "ИИ-анализ завершен, рапорт сохранен."
+        : "ИИ-анализ завершился ошибкой, причина сохранена в рапорте.",
   };
 }
 

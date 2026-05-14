@@ -2,9 +2,23 @@ import { appendFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import type { AppData, Project, Student, UpdateEvent } from "@/domain/schemas";
 import { createUtcTimestamp } from "@/domain/student-rules";
-import { GitCliClient, GitCommandError, type GitReviewCopyClient } from "@/integrations/git";
-import { type CodeOpenClient, VsCodeCliClient, VsCodeCommandError } from "@/integrations/vscode";
-import { failure, normalizeUnknownError, success, type AppError, type AppResult } from "@/shared/result";
+import {
+  GitCliClient,
+  GitCommandError,
+  type GitReviewCopyClient,
+} from "@/integrations/git";
+import {
+  type CodeOpenClient,
+  VsCodeCliClient,
+  VsCodeCommandError,
+} from "@/integrations/vscode";
+import {
+  failure,
+  normalizeUnknownError,
+  success,
+  type AppError,
+  type AppResult,
+} from "@/shared/result";
 import { AppStorage, getDefaultStorage } from "@/storage/app-storage";
 import { ensureDirectory, pathExists } from "@/storage/file-system";
 import { StorageError } from "@/storage/storage-error";
@@ -20,7 +34,7 @@ export type OpenUpdateCodeResponse = {
   reviewCopyPath: string;
 };
 
-type ReviewCopyPreparation = {
+export type ReviewCopyPreparation = {
   reviewCopyPath: string;
 };
 
@@ -47,14 +61,19 @@ export async function openUpdateCodeInVsCode(
     if (student === null || project === null) {
       const error = {
         code: "review_data_invalid",
-        message: "Событие обновления ссылается на отсутствующего студента или проект.",
+        message:
+          "Событие обновления ссылается на отсутствующего студента или проект.",
       };
       await writeReviewCodeDiagnostic(storage, error, event, null);
       return failure(error);
     }
 
-    const git = gitClient ?? new GitCliClient(data.settingsFile.settings.tools.git.command);
-    const code = codeClient ?? new VsCodeCliClient(data.settingsFile.settings.tools.code.command);
+    const git =
+      gitClient ??
+      new GitCliClient(data.settingsFile.settings.tools.git.command);
+    const code =
+      codeClient ??
+      new VsCodeCliClient(data.settingsFile.settings.tools.code.command);
     const prepared = await prepareReviewCopy({ storage, git, event, project });
 
     if (!prepared.ok) {
@@ -65,8 +84,16 @@ export async function openUpdateCodeInVsCode(
     try {
       await code.openPath(prepared.value.reviewCopyPath);
     } catch (error) {
-      const appError = normalizeVsCodeError(error, prepared.value.reviewCopyPath);
-      await writeReviewCodeDiagnostic(storage, appError, event, prepared.value.reviewCopyPath);
+      const appError = normalizeVsCodeError(
+        error,
+        prepared.value.reviewCopyPath,
+      );
+      await writeReviewCodeDiagnostic(
+        storage,
+        appError,
+        event,
+        prepared.value.reviewCopyPath,
+      );
       return failure(appError);
     }
 
@@ -81,7 +108,7 @@ export async function openUpdateCodeInVsCode(
   }
 }
 
-async function prepareReviewCopy({
+export async function prepareReviewCopy({
   storage,
   git,
   event,
@@ -110,7 +137,8 @@ async function prepareReviewCopy({
   if (!(await pathExists(mainRepositoryPath.value))) {
     return failure({
       code: "main_repository_missing",
-      message: "Основная локальная копия проекта отсутствует. Сначала обновите проект.",
+      message:
+        "Основная локальная копия проекта отсутствует. Сначала обновите проект.",
       path: mainRepositoryPath.value,
     });
   }
@@ -119,12 +147,19 @@ async function prepareReviewCopy({
     if (!(await git.isRepository(mainRepositoryPath.value))) {
       return failure({
         code: "main_repository_invalid",
-        message: "Основная локальная копия не является ожидаемым Git-репозиторием.",
+        message:
+          "Основная локальная копия не является ожидаемым Git-репозиторием.",
         path: mainRepositoryPath.value,
       });
     }
   } catch (error) {
-    return failure(normalizeGitReviewError(error, "git_command_failed", mainRepositoryPath.value));
+    return failure(
+      normalizeGitReviewError(
+        error,
+        "git_command_failed",
+        mainRepositoryPath.value,
+      ),
+    );
   }
 
   try {
@@ -139,16 +174,32 @@ async function prepareReviewCopy({
       });
     }
   } catch (error) {
-    return failure(normalizeGitReviewError(error, "git_command_failed", mainRepositoryPath.value));
+    return failure(
+      normalizeGitReviewError(
+        error,
+        "git_command_failed",
+        mainRepositoryPath.value,
+      ),
+    );
   }
 
   try {
     await git.verifyCommit(mainRepositoryPath.value, targetCommit);
   } catch (error) {
-    return failure(normalizeGitReviewError(error, "commit_not_available", mainRepositoryPath.value));
+    return failure(
+      normalizeGitReviewError(
+        error,
+        "commit_not_available",
+        mainRepositoryPath.value,
+      ),
+    );
   }
 
-  const reviewCopyPath = resolveReviewCopyPath(storage, event.studentId, event.id);
+  const reviewCopyPath = resolveReviewCopyPath(
+    storage,
+    event.studentId,
+    event.id,
+  );
 
   if (!reviewCopyPath.ok) {
     return failure(reviewCopyPath.error);
@@ -174,9 +225,19 @@ async function prepareReviewCopy({
   await ensureDirectory(dirname(reviewCopyPath.value));
 
   try {
-    await git.createDetachedWorktree(mainRepositoryPath.value, reviewCopyPath.value, targetCommit);
+    await git.createDetachedWorktree(
+      mainRepositoryPath.value,
+      reviewCopyPath.value,
+      targetCommit,
+    );
   } catch (error) {
-    return failure(normalizeGitReviewError(error, "worktree_create_failed", reviewCopyPath.value));
+    return failure(
+      normalizeGitReviewError(
+        error,
+        "worktree_create_failed",
+        reviewCopyPath.value,
+      ),
+    );
   }
 
   try {
@@ -191,7 +252,13 @@ async function prepareReviewCopy({
       });
     }
   } catch (error) {
-    return failure(normalizeGitReviewError(error, "git_command_failed", reviewCopyPath.value));
+    return failure(
+      normalizeGitReviewError(
+        error,
+        "git_command_failed",
+        reviewCopyPath.value,
+      ),
+    );
   }
 
   return success({ reviewCopyPath: reviewCopyPath.value });
@@ -212,12 +279,15 @@ async function validateExistingReviewCopy({
     if (!(await git.isRepository(reviewCopyPath))) {
       return failure({
         code: "review_copy_mismatch",
-        message: "Существующая review-копия не является ожидаемым Git-репозиторием.",
+        message:
+          "Существующая review-копия не является ожидаемым Git-репозиторием.",
         path: reviewCopyPath,
       });
     }
   } catch (error) {
-    return failure(normalizeGitReviewError(error, "git_command_failed", reviewCopyPath));
+    return failure(
+      normalizeGitReviewError(error, "git_command_failed", reviewCopyPath),
+    );
   }
 
   let head: string;
@@ -228,14 +298,17 @@ async function validateExistingReviewCopy({
     if (status.trim().length > 0) {
       return failure({
         code: "review_copy_dirty",
-        message: "Существующая review-копия содержит локальные изменения и не будет перезаписана.",
+        message:
+          "Существующая review-копия содержит локальные изменения и не будет перезаписана.",
         path: reviewCopyPath,
       });
     }
 
     head = await git.readHead(reviewCopyPath);
   } catch (error) {
-    return failure(normalizeGitReviewError(error, "git_command_failed", reviewCopyPath));
+    return failure(
+      normalizeGitReviewError(error, "git_command_failed", reviewCopyPath),
+    );
   }
 
   if (head === targetCommit) {
@@ -246,7 +319,9 @@ async function validateExistingReviewCopy({
     await git.removeWorktree(mainRepositoryPath, reviewCopyPath);
     return success({ reviewCopyPath: null });
   } catch (error) {
-    return failure(normalizeGitReviewError(error, "worktree_remove_failed", reviewCopyPath));
+    return failure(
+      normalizeGitReviewError(error, "worktree_remove_failed", reviewCopyPath),
+    );
   }
 }
 
@@ -272,10 +347,18 @@ function resolveReviewCopyPath(
   studentId: string,
   updateEventId: string,
 ): AppResult<string> {
-  const absolutePath = resolve(storage.reviewCopiesPath, studentId, updateEventId);
+  const absolutePath = resolve(
+    storage.reviewCopiesPath,
+    studentId,
+    updateEventId,
+  );
   const relativeToBase = relative(storage.reviewCopiesPath, absolutePath);
 
-  if (relativeToBase.startsWith("..") || isAbsolute(relativeToBase) || relativeToBase === "") {
+  if (
+    relativeToBase.startsWith("..") ||
+    isAbsolute(relativeToBase) ||
+    relativeToBase === ""
+  ) {
     return failure({
       code: "review_path_invalid",
       message: "Путь review-копии выходит за пределы папки review-копий.",
@@ -302,7 +385,11 @@ function resolveDataPath(
   const absolutePath = resolve(storage.dataRootPath, relativePath);
   const relativeToRoot = relative(storage.dataRootPath, absolutePath);
 
-  if (relativeToRoot.startsWith("..") || isAbsolute(relativeToRoot) || relativeToRoot === "") {
+  if (
+    relativeToRoot.startsWith("..") ||
+    isAbsolute(relativeToRoot) ||
+    relativeToRoot === ""
+  ) {
     return failure({
       code: errorCode,
       message: "Локальный путь проекта выходит за пределы папки data.",
@@ -314,18 +401,35 @@ function resolveDataPath(
 }
 
 function findStudent(data: AppData, studentId: string): Student | null {
-  return data.studentsFile.students.find((student) => student.id === studentId) ?? null;
+  return (
+    data.studentsFile.students.find((student) => student.id === studentId) ??
+    null
+  );
 }
 
 function findProject(data: AppData, projectId: string): Project | null {
-  return data.projectsFile.projects.find((project) => project.id === projectId) ?? null;
+  return (
+    data.projectsFile.projects.find((project) => project.id === projectId) ??
+    null
+  );
 }
 
-function findUpdateEvent(data: AppData, updateEventId: string): UpdateEvent | null {
-  return data.updateEventsFile.updateEvents.find((event) => event.id === updateEventId) ?? null;
+function findUpdateEvent(
+  data: AppData,
+  updateEventId: string,
+): UpdateEvent | null {
+  return (
+    data.updateEventsFile.updateEvents.find(
+      (event) => event.id === updateEventId,
+    ) ?? null
+  );
 }
 
-function normalizeGitReviewError(error: unknown, fallbackCode: string, path: string): AppError {
+function normalizeGitReviewError(
+  error: unknown,
+  fallbackCode: string,
+  path: string,
+): AppError {
   if (!(error instanceof GitCommandError)) {
     return {
       code: fallbackCode,
@@ -335,19 +439,27 @@ function normalizeGitReviewError(error: unknown, fallbackCode: string, path: str
     };
   }
 
-  const output = `${error.stderr}\n${error.stdout}\n${error.message}`.toLowerCase();
+  const output =
+    `${error.stderr}\n${error.stdout}\n${error.message}`.toLowerCase();
   const code =
-    error.exitCode === null && output.includes("enoent") ? "git_command_failed" : fallbackCode;
+    error.exitCode === null && output.includes("enoent")
+      ? "git_command_failed"
+      : fallbackCode;
 
   return {
     code,
     message: getReviewCodeMessage(code),
-    details: cleanTechnicalDetails(`${error.stderr}\n${error.stdout}\n${error.message}`),
+    details: cleanTechnicalDetails(
+      `${error.stderr}\n${error.stdout}\n${error.message}`,
+    ),
     path,
   };
 }
 
-function normalizeVsCodeError(error: unknown, reviewCopyPath: string): AppError {
+function normalizeVsCodeError(
+  error: unknown,
+  reviewCopyPath: string,
+): AppError {
   if (!(error instanceof VsCodeCommandError)) {
     return {
       code: "vscode_open_failed",
@@ -357,7 +469,8 @@ function normalizeVsCodeError(error: unknown, reviewCopyPath: string): AppError 
     };
   }
 
-  const code = error.exitCode === null ? "vscode_not_available" : "vscode_open_failed";
+  const code =
+    error.exitCode === null ? "vscode_not_available" : "vscode_open_failed";
 
   return {
     code,
@@ -365,7 +478,9 @@ function normalizeVsCodeError(error: unknown, reviewCopyPath: string): AppError 
       code === "vscode_not_available"
         ? "Команда VS Code недоступна. Review-копию можно открыть вручную по указанному пути."
         : "VS Code не удалось открыть review-копию.",
-    details: cleanTechnicalDetails(`${error.stderr}\n${error.stdout}\n${error.message}`),
+    details: cleanTechnicalDetails(
+      `${error.stderr}\n${error.stdout}\n${error.message}`,
+    ),
     path: reviewCopyPath,
   };
 }
@@ -413,7 +528,10 @@ async function writeReviewCodeDiagnostic(
   }
 }
 
-function toDiagnosticPath(storage: AppStorage, path: string | null): string | null {
+function toDiagnosticPath(
+  storage: AppStorage,
+  path: string | null,
+): string | null {
   if (path === null) {
     return null;
   }
