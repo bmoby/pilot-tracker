@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -8,7 +8,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock3,
-  GitBranch,
+  ExternalLink,
   Pencil,
   Plus,
   RefreshCw,
@@ -48,12 +48,6 @@ export function StudentsPage({ initialStudents, latestUpdateRun }: StudentsPageP
   const [studentToDelete, setStudentToDelete] = useState<StudentListItem | null>(null);
   const [message, setMessage] = useState<StudentActionState | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-
-  const studentsCount = initialStudents.length;
-  const connectedCount = useMemo(
-    () => initialStudents.filter((student) => student.repositoryUrl !== null).length,
-    [initialStudents],
-  );
 
   function handleSaved(result: StudentActionState) {
     if (result.ok) {
@@ -139,12 +133,6 @@ export function StudentsPage({ initialStudents, latestUpdateRun }: StudentsPageP
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3">
-          <Metric label="Всего студентов" value={studentsCount} />
-          <Metric label="С репозиторием" value={connectedCount} />
-          <Metric label="Без репозитория" value={studentsCount - connectedCount} />
-        </div>
-
         {message ? (
           <div
             className={[
@@ -221,49 +209,36 @@ export function StudentsPage({ initialStudents, latestUpdateRun }: StudentsPageP
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <p className="text-sm text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
-    </div>
-  );
-}
-
 function UpdateRunSummary({ run }: { run: UpdateRunListItem }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
-            <Clock3 size={16} aria-hidden="true" />
-            Последнее обновление
-          </div>
-          <p className="mt-2 text-lg font-semibold text-slate-950">
-            {formatDateTime(run.finishedAt ?? run.startedAt)}
-          </p>
-          <p className="mt-1 text-sm text-slate-600">
-            Статус запуска: {run.status === "completed_with_errors" ? "завершено с ошибками" : "завершено"}
-          </p>
-        </div>
-        <div className="grid gap-2 text-sm text-slate-700 sm:grid-cols-3 lg:grid-cols-6">
-          <SummaryPill label="Первая загрузка" value={run.summary.projectsFirstLoaded} />
-          <SummaryPill label="Новые изменения" value={run.summary.projectsWithChanges} />
-          <SummaryPill label="Коммиты" value={run.summary.newCommitsTotal} />
-          <SummaryPill label="Без изменений" value={run.summary.projectsWithoutChanges} />
-          <SummaryPill label="Ошибки" value={run.summary.errorsTotal} />
-          <SummaryPill label="Без ссылки" value={run.summary.studentsWithoutRepository} />
-        </div>
+    <section className="flex flex-col gap-3 border-y border-slate-200 py-3 text-sm text-slate-700 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex min-w-0 items-center gap-2 font-medium text-slate-800">
+        <Clock3 className="shrink-0 text-slate-500" size={16} aria-hidden="true" />
+        <span className="min-w-0">
+          Последнее обновление: {formatDateTime(run.finishedAt ?? run.startedAt)}
+          <span className="text-slate-500">
+            {" "}
+            · {formatUpdateRunStatus(run.status)}
+          </span>
+        </span>
       </div>
+      <dl className="flex flex-wrap gap-x-4 gap-y-1">
+        <SummaryItem label="Первая загрузка" value={run.summary.projectsFirstLoaded} />
+        <SummaryItem label="Новые изменения" value={run.summary.projectsWithChanges} />
+        <SummaryItem label="Коммиты" value={run.summary.newCommitsTotal} />
+        <SummaryItem label="Без изменений" value={run.summary.projectsWithoutChanges} />
+        <SummaryItem label="Ошибки" value={run.summary.errorsTotal} />
+        <SummaryItem label="Без ссылки" value={run.summary.studentsWithoutRepository} />
+      </dl>
     </section>
   );
 }
 
-function SummaryPill({ label, value }: { label: string; value: number }) {
+function SummaryItem({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-slate-950">{value}</p>
+    <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+      <dt className="text-slate-500">{label}:</dt>
+      <dd className="font-semibold text-slate-950">{value}</dd>
     </div>
   );
 }
@@ -280,7 +255,7 @@ function StudentRow({
   onDelete: () => void;
 }) {
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-5">
+    <article className="rounded-lg border border-slate-200 bg-white p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
@@ -290,24 +265,16 @@ function StudentRow({
 
           {student.notes ? <p className="mt-2 text-sm text-slate-600">{student.notes}</p> : null}
 
-          <div className="mt-4 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
-            <InfoLine
-              icon={<GitBranch size={16} aria-hidden="true" />}
-              label={student.repositoryUrl ?? "GitHub-ссылка не указана"}
-            />
-            <InfoLine label={student.localPath ?? "Локальная копия еще не создана"} />
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-600">
+            <RepositoryLink url={student.repositoryUrl} />
             <InfoLine label={student.lastUpdatedAt ? `Обновлено: ${formatDateTime(student.lastUpdatedAt)}` : "Обновлений еще не было"} />
-            <InfoLine label={student.lastKnownCommit ? `Коммит: ${shortCommit(student.lastKnownCommit)}` : "Коммит еще не зафиксирован"} />
+            {student.lastUpdateResultLabel ? (
+              <InfoLine label={`Последнее событие: ${student.lastUpdateResultLabel}`} />
+            ) : null}
+            {student.lastNewCommitsCount !== null ? (
+              <InfoLine label={`Новых коммитов: ${student.lastNewCommitsCount}`} />
+            ) : null}
           </div>
-
-          {student.lastUpdateResultLabel ? (
-            <p className="mt-3 text-sm text-slate-700">
-              Последнее событие: {student.lastUpdateResultLabel}
-              {student.lastNewCommitsCount !== null
-                ? `, новых коммитов: ${student.lastNewCommitsCount}`
-                : ""}
-            </p>
-          ) : null}
 
           {student.lastError ? (
             <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
@@ -351,9 +318,33 @@ function StudentRow({
   );
 }
 
+function RepositoryLink({ url }: { url: string | null }) {
+  if (url === null) {
+    return (
+      <span className="inline-flex max-w-full min-w-0 items-center gap-2 text-slate-500">
+        <ExternalLink size={16} aria-hidden="true" />
+        <span className="truncate">GitHub-ссылка не указана</span>
+      </span>
+    );
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex max-w-full min-w-0 items-center gap-2 font-medium text-teal-700 hover:text-teal-800 hover:underline"
+      title={url}
+    >
+      <ExternalLink size={16} aria-hidden="true" />
+      <span className="truncate">{formatRepositoryLabel(url)}</span>
+    </a>
+  );
+}
+
 function InfoLine({ icon, label }: { icon?: ReactNode; label: string }) {
   return (
-    <p className="flex min-w-0 items-center gap-2">
+    <p className="flex max-w-full min-w-0 items-center gap-2 whitespace-nowrap">
       {icon ? <span className="text-slate-400">{icon}</span> : null}
       <span className="truncate">{label}</span>
     </p>
@@ -375,8 +366,32 @@ function formatDateTime(value: string): string {
   }).format(new Date(value));
 }
 
-function shortCommit(value: string): string {
-  return value.slice(0, 7);
+function formatUpdateRunStatus(status: UpdateRunListItem["status"]): string {
+  switch (status) {
+    case "running":
+      return "выполняется";
+    case "completed":
+      return "завершено";
+    case "completed_with_errors":
+      return "завершено с ошибками";
+    case "failed":
+      return "завершилось неуспешно";
+  }
+}
+
+function formatRepositoryLabel(value: string): string {
+  try {
+    const url = new URL(value);
+    const [owner, repository] = url.pathname.split("/").filter(Boolean);
+
+    if (owner && repository) {
+      return `${owner}/${repository.replace(/\.git$/, "")}`;
+    }
+  } catch {
+    return value;
+  }
+
+  return value;
 }
 
 function StudentFormModal({
