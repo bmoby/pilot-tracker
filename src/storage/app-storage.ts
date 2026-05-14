@@ -189,8 +189,12 @@ function validateAppDataConsistency(data: AppData): void {
   const projectIds = new Set(data.projectsFile.projects.map((project) => project.id));
   const updateRunIds = new Set(data.updateRunsFile.updateRuns.map((run) => run.id));
   const updateEventIds = new Set(data.updateEventsFile.updateEvents.map((event) => event.id));
+  const commentIds = new Set(data.commentsFile.comments.map((comment) => comment.id));
   const reviewStatusIds = new Set(
     data.reviewStatusesFile.reviewStatuses.map((status) => status.id),
+  );
+  const reviewStatusEventIds = new Set(
+    data.reviewStatusesFile.reviewStatuses.map((status) => status.updateEventId),
   );
 
   if (studentIds.size !== data.studentsFile.students.length) {
@@ -225,6 +229,20 @@ function validateAppDataConsistency(data: AppData): void {
     throw createStorageError(
       "storage_consistency_error",
       "В статусах проверки найдены повторяющиеся идентификаторы.",
+    );
+  }
+
+  if (reviewStatusEventIds.size !== data.reviewStatusesFile.reviewStatuses.length) {
+    throw createStorageError(
+      "storage_consistency_error",
+      "Для одного события обновления найдено несколько статусов проверки.",
+    );
+  }
+
+  if (commentIds.size !== data.commentsFile.comments.length) {
+    throw createStorageError(
+      "storage_consistency_error",
+      "В комментариях проверки найдены повторяющиеся идентификаторы.",
     );
   }
 
@@ -276,6 +294,26 @@ function validateAppDataConsistency(data: AppData): void {
       throw createStorageError(
         "storage_consistency_error",
         "Связь статуса проверки и события обновления нарушена.",
+      );
+    }
+  }
+
+  for (const comment of data.commentsFile.comments) {
+    const event = data.updateEventsFile.updateEvents.find(
+      (item) => item.id === comment.updateEventId,
+    );
+
+    if (event === undefined) {
+      throw createStorageError(
+        "storage_consistency_error",
+        "Комментарий проверки ссылается на отсутствующее событие обновления.",
+      );
+    }
+
+    if (event.studentId !== comment.studentId || event.projectId !== comment.projectId) {
+      throw createStorageError(
+        "storage_consistency_error",
+        "Связь комментария проверки и события обновления нарушена.",
       );
     }
   }

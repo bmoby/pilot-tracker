@@ -167,6 +167,18 @@ export const reviewStatusSchema = z.object({
 });
 export type ReviewStatus = z.infer<typeof reviewStatusSchema>;
 
+export const commentSchema = z.object({
+  id: commentIdSchema,
+  studentId: studentIdSchema,
+  projectId: projectIdSchema,
+  updateEventId: updateEventIdSchema,
+  text: z.string().trim().min(1, "Комментарий не может быть пустым."),
+  basedOnAiReportId: aiReportIdSchema.nullable(),
+  createdAt: isoUtcDateSchema,
+  updatedAt: isoUtcDateSchema,
+});
+export type Comment = z.infer<typeof commentSchema>;
+
 export const aiDescriptionSchema = z.object({
   status: z.enum(["missing", "running", "ready", "error"]),
   summary: z.string().nullable(),
@@ -270,7 +282,7 @@ export type UpdateEventsFile = z.infer<typeof updateEventsFileSchema>;
 
 export const commentsFileSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
-  comments: z.array(z.record(z.string(), z.unknown())),
+  comments: z.array(commentSchema),
 });
 
 export type CommentsFile = z.infer<typeof commentsFileSchema>;
