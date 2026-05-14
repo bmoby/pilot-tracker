@@ -201,7 +201,7 @@ export async function deleteStudent(
       run.summary = summarizeUpdateEvents(runEvents, data.studentsFile.students.length);
     }
     data.commentsFile.comments = data.commentsFile.comments.filter(
-      (comment) => !removedUpdateIds.has(getStringField(comment, "updateEventId") ?? ""),
+      (comment) => !removedUpdateIds.has(comment.updateEventId),
     );
     data.reviewStatusesFile.reviewStatuses = data.reviewStatusesFile.reviewStatuses.filter(
       (status) => !removedUpdateIds.has(status.updateEventId),

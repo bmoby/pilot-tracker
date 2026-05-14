@@ -1,5 +1,14 @@
 import { dirname, isAbsolute, relative, resolve } from "node:path";
-import type { AppData, Project, ReviewStatus, Student, UpdateEvent, UpdateRun } from "@/domain/schemas";
+import type {
+  AppData,
+  Comment,
+  Project,
+  ReviewStatus,
+  ReviewStatusValue,
+  Student,
+  UpdateEvent,
+  UpdateRun,
+} from "@/domain/schemas";
 import {
   projectStatusLabels,
   reviewStatusLabels,
@@ -35,13 +44,23 @@ export type UpdateRunListItem = {
   error: string | null;
 };
 
+export type ReviewCommentListItem = {
+  id: string;
+  text: string;
+  basedOnAiReportId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type UpdateEventListItem = {
   id: string;
   result: UpdateEvent["result"];
   resultLabel: string;
   status: UpdateEvent["status"];
-  reviewStatus: string;
+  reviewStatus: ReviewStatusValue;
   reviewStatusLabel: string;
+  commentsCount: number;
+  comments: ReviewCommentListItem[];
   startedAt: string;
   finishedAt: string | null;
   occurredAt: string | null;
@@ -597,6 +616,7 @@ function toStudentDetailsData(data: AppData, student: Student, project: Project)
 export function toUpdateEventListItem(data: AppData, event: UpdateEvent): UpdateEventListItem {
   const reviewStatus = findReviewStatus(data, event.id);
   const statusValue = reviewStatus?.status ?? "not_reviewed";
+  const comments = findEventComments(data, event.id).map(toReviewCommentListItem);
 
   return {
     id: event.id,
@@ -605,6 +625,8 @@ export function toUpdateEventListItem(data: AppData, event: UpdateEvent): Update
     status: event.status,
     reviewStatus: statusValue,
     reviewStatusLabel: reviewStatusLabels[statusValue],
+    commentsCount: comments.length,
+    comments,
     startedAt: event.startedAt,
     finishedAt: event.finishedAt,
     occurredAt: event.occurredAt,
@@ -616,6 +638,22 @@ export function toUpdateEventListItem(data: AppData, event: UpdateEvent): Update
     newCommitsCount: event.newCommitsCount,
     hasNewChanges: event.hasNewChanges,
     error: event.error,
+  };
+}
+
+function findEventComments(data: AppData, eventId: string): Comment[] {
+  return data.commentsFile.comments
+    .filter((comment) => comment.updateEventId === eventId)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+}
+
+function toReviewCommentListItem(comment: Comment): ReviewCommentListItem {
+  return {
+    id: comment.id,
+    text: comment.text,
+    basedOnAiReportId: comment.basedOnAiReportId,
+    createdAt: comment.createdAt,
+    updatedAt: comment.updatedAt,
   };
 }
 
