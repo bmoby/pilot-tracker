@@ -2,7 +2,7 @@
 
 :root {
   color-scheme: light;
-  --background: #f7f6f1;
+  --background: #ffffff;
   --foreground: #1f2933;
   --muted: #5f6b76;
   --panel: #ffffff;
@@ -12,6 +12,13 @@
   --danger: #b42318;
   --warning: #b54708;
   --success: #027a48;
+}
+
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }
 
 * {
@@ -40,9 +47,4 @@ textarea {
 
 button {
   cursor: pointer;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
 }
