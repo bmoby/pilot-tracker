@@ -48,6 +48,9 @@ export function StudentsPage({ initialStudents, latestUpdateRun }: StudentsPageP
   const [studentToDelete, setStudentToDelete] = useState<StudentListItem | null>(null);
   const [message, setMessage] = useState<StudentActionState | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [openedUpdates, setOpenedUpdates] = useState<Record<string, string>>(
+    readOpenedUpdates,
+  );
 
   function handleSaved(result: StudentActionState) {
     if (result.ok) {
@@ -99,18 +102,38 @@ export function StudentsPage({ initialStudents, latestUpdateRun }: StudentsPageP
     });
   }
 
+  function markStudentOpened(student: StudentListItem) {
+    const marker = getStudentUpdateMarker(student);
+
+    if (marker === null) {
+      return;
+    }
+
+    setOpenedUpdates((current) => {
+      const next = {
+        ...current,
+        [student.studentId]: marker,
+      };
+
+      writeOpenedUpdates(next);
+      return next;
+    });
+  }
+
   return (
     <AppShell activeSection="students">
-      <section className="grid gap-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <section className="grid gap-8">
+        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm font-medium text-teal-700">Студенты</p>
-            <h1 className="mt-1 text-3xl font-semibold text-slate-950">Рабочая когорта</h1>
+            <p className="text-sm font-medium text-neutral-400">Студенты</p>
+            <h1 className="mt-2 text-4xl font-semibold tracking-normal text-neutral-950">
+              Рабочая когорта
+            </h1>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm hover:border-slate-300 disabled:opacity-60"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#f7f7f5] px-4 text-sm font-medium text-neutral-800 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)] hover:bg-[#f1f1ef] disabled:opacity-60"
               onClick={updateProjects}
               disabled={isPending || initialStudents.length === 0}
             >
@@ -119,7 +142,7 @@ export function StudentsPage({ initialStudents, latestUpdateRun }: StudentsPageP
             </button>
             <button
               type="button"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 disabled:opacity-60"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-neutral-950 px-4 text-sm font-medium text-white shadow-[0_10px_28px_rgba(0,0,0,0.12)] hover:bg-neutral-800 disabled:opacity-60"
               onClick={() => {
                 setFormMode({ type: "create" });
                 setMessage(null);
@@ -134,40 +157,38 @@ export function StudentsPage({ initialStudents, latestUpdateRun }: StudentsPageP
         </div>
 
         {message ? (
-          <div
-            className={[
-              "flex items-start gap-3 rounded-lg border bg-white p-4 text-sm",
-              message.ok ? "border-emerald-200 text-emerald-800" : "border-red-200 text-red-900",
-            ].join(" ")}
-          >
-            {message.ok ? (
-              <CheckCircle2 className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
-            ) : (
-              <AlertCircle className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
-            )}
-            <p>{message.message}</p>
-          </div>
+          <Notice ok={message.ok}>{message.message}</Notice>
         ) : null}
 
         {latestUpdateRun ? <UpdateRunSummary run={latestUpdateRun} /> : null}
 
         {initialStudents.length === 0 ? (
-          <section className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
-            <div className="mx-auto flex size-12 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+          <section className="rounded-lg bg-white p-8 text-center shadow-[0_16px_42px_rgba(0,0,0,0.06)]">
+            <div className="mx-auto flex size-12 items-center justify-center rounded-lg bg-[#f7f7f5] text-neutral-500">
               <UserRound size={24} aria-hidden="true" />
             </div>
-            <h2 className="mt-4 text-xl font-semibold text-slate-950">Список студентов пуст</h2>
-            <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
+            <h2 className="mt-4 text-xl font-semibold text-neutral-950">
+              Список студентов пуст
+            </h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-neutral-500">
               Добавьте первого студента, чтобы начать формировать текущую рабочую когорту.
             </p>
           </section>
         ) : (
-          <section className="grid gap-3">
+          <section className="overflow-hidden rounded-lg bg-white shadow-[0_16px_42px_rgba(0,0,0,0.06)]">
+            <div className="grid grid-cols-[1.2fr_1fr_1.2fr_auto] gap-4 px-5 py-4 text-sm font-medium text-neutral-400 max-lg:hidden">
+              <span>Студент</span>
+              <span>GitHub</span>
+              <span>После обновления</span>
+              <span />
+            </div>
             {initialStudents.map((student) => (
               <StudentRow
                 key={student.studentId}
                 student={student}
                 disabled={isPending}
+                opened={isStudentUpdateOpened(student, openedUpdates)}
+                onOpen={() => markStudentOpened(student)}
                 onEdit={() => {
                   setFormMode({ type: "edit", student });
                   setMessage(null);
@@ -211,12 +232,12 @@ export function StudentsPage({ initialStudents, latestUpdateRun }: StudentsPageP
 
 function UpdateRunSummary({ run }: { run: UpdateRunListItem }) {
   return (
-    <section className="flex flex-col gap-3 border-y border-slate-200 py-3 text-sm text-slate-700 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex min-w-0 items-center gap-2 font-medium text-slate-800">
-        <Clock3 className="shrink-0 text-slate-500" size={16} aria-hidden="true" />
+    <section className="flex flex-col gap-3 rounded-lg bg-[#fbfbfa] px-4 py-3 text-sm text-neutral-600 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)] lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex min-w-0 items-center gap-2 font-medium text-neutral-800">
+        <Clock3 className="shrink-0 text-neutral-400" size={16} aria-hidden="true" />
         <span className="min-w-0">
           Последнее обновление: {formatDateTime(run.finishedAt ?? run.startedAt)}
-          <span className="text-slate-500">
+          <span className="text-neutral-400">
             {" "}
             · {formatUpdateRunStatus(run.status)}
           </span>
@@ -237,8 +258,8 @@ function UpdateRunSummary({ run }: { run: UpdateRunListItem }) {
 function SummaryItem({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex items-baseline gap-1.5 whitespace-nowrap">
-      <dt className="text-slate-500">{label}:</dt>
-      <dd className="font-semibold text-slate-950">{value}</dd>
+      <dt className="text-neutral-400">{label}:</dt>
+      <dd className="font-semibold text-neutral-950">{value}</dd>
     </div>
   );
 }
@@ -246,73 +267,99 @@ function SummaryItem({ label, value }: { label: string; value: number }) {
 function StudentRow({
   student,
   disabled,
+  opened,
+  onOpen,
   onEdit,
   onDelete,
 }: {
   student: StudentListItem;
   disabled: boolean;
+  opened: boolean;
+  onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const activity = getStudentActivity(student, opened);
+
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-lg font-semibold text-slate-950">{student.displayName}</h2>
-            <StatusBadge status={student.statusLabel} />
-          </div>
+    <article className="grid gap-4 px-5 py-4 shadow-[0_-1px_0_rgba(0,0,0,0.06)] lg:grid-cols-[1.2fr_1fr_1.2fr_auto] lg:items-center">
+      <div className="min-w-0">
+        <h2 className="text-lg font-semibold text-neutral-950">
+          {student.displayName}
+        </h2>
+        {student.notes ? (
+          <p className="mt-1 text-sm text-neutral-400">{student.notes}</p>
+        ) : null}
+      </div>
 
-          {student.notes ? <p className="mt-2 text-sm text-slate-600">{student.notes}</p> : null}
+      <RepositoryLink url={student.repositoryUrl} />
 
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-600">
-            <RepositoryLink url={student.repositoryUrl} />
-            <InfoLine label={student.lastUpdatedAt ? `Обновлено: ${formatDateTime(student.lastUpdatedAt)}` : "Обновлений еще не было"} />
-            {student.lastUpdateResultLabel ? (
-              <InfoLine label={`Последнее событие: ${student.lastUpdateResultLabel}`} />
-            ) : null}
-            {student.lastNewCommitsCount !== null ? (
-              <InfoLine label={`Новых коммитов: ${student.lastNewCommitsCount}`} />
-            ) : null}
-          </div>
-
-          {student.lastError ? (
-            <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
-              {student.lastError}
-            </p>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-500">
+          <span className="whitespace-nowrap">
+            {student.lastUpdatedAt
+              ? formatDateTime(student.lastUpdatedAt)
+              : "обновлений еще не было"}
+          </span>
+          <span
+            className={[
+              "inline-flex min-h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium",
+              activity.tone === "dark"
+                ? "bg-neutral-950 text-white"
+                : activity.tone === "green"
+                  ? "bg-[#edf8ef] text-[#4fa75b]"
+                  : activity.tone === "red"
+                    ? "bg-[#fff1ed] text-[#d45b51]"
+                    : "bg-[#f7f7f5] text-neutral-500",
+            ].join(" ")}
+          >
+            {activity.icon}
+            {activity.label}
+          </span>
+          {activity.seenLabel ? (
+            <span className="text-xs font-medium text-neutral-400">
+              {activity.seenLabel}
+            </span>
           ) : null}
         </div>
+        {student.lastError ? (
+          <span className="mt-2 inline-flex max-w-full items-start gap-2 rounded-lg bg-[#fff1ed] px-3 py-2 text-sm font-medium text-[#d45b51]">
+            <AlertCircle className="mt-0.5 shrink-0" size={16} aria-hidden="true" />
+            <span className="break-words">{student.lastError}</span>
+          </span>
+        ) : null}
+      </div>
 
-        <div className="flex shrink-0 gap-2">
-          <Link
-            href={`/students/${student.studentId}`}
-            className="inline-flex size-10 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:border-slate-300"
-            title="Открыть студента"
-          >
-            <ArrowRight size={17} aria-hidden="true" />
-            <span className="sr-only">Открыть студента</span>
-          </Link>
-          <button
-            type="button"
-            className="inline-flex size-10 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:border-slate-300 disabled:opacity-60"
-            onClick={onEdit}
-            disabled={disabled}
-            title="Редактировать студента"
-          >
-            <Pencil size={17} aria-hidden="true" />
-            <span className="sr-only">Редактировать студента</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex size-10 items-center justify-center rounded-lg border border-red-200 text-red-700 hover:border-red-300 disabled:opacity-60"
-            onClick={onDelete}
-            disabled={disabled}
-            title="Удалить студента"
-          >
-            <Trash2 size={17} aria-hidden="true" />
-            <span className="sr-only">Удалить студента</span>
-          </button>
-        </div>
+      <div className="flex shrink-0 gap-2 lg:justify-end">
+        <Link
+          href={`/students/${student.studentId}`}
+          className="inline-flex size-10 items-center justify-center rounded-full bg-[#fbfbfa] text-neutral-700 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)] hover:bg-white"
+          onClick={onOpen}
+          title="Открыть студента"
+        >
+          <ArrowRight size={17} aria-hidden="true" />
+          <span className="sr-only">Открыть студента</span>
+        </Link>
+        <button
+          type="button"
+          className="inline-flex size-10 items-center justify-center rounded-full bg-[#fbfbfa] text-neutral-700 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)] hover:bg-white disabled:opacity-60"
+          onClick={onEdit}
+          disabled={disabled}
+          title="Редактировать студента"
+        >
+          <Pencil size={17} aria-hidden="true" />
+          <span className="sr-only">Редактировать студента</span>
+        </button>
+        <button
+          type="button"
+          className="inline-flex size-10 items-center justify-center rounded-full bg-[#fff1ed] text-[#d45b51] hover:bg-[#ffe7df] disabled:opacity-60"
+          onClick={onDelete}
+          disabled={disabled}
+          title="Удалить студента"
+        >
+          <Trash2 size={17} aria-hidden="true" />
+          <span className="sr-only">Удалить студента</span>
+        </button>
       </div>
     </article>
   );
@@ -321,7 +368,7 @@ function StudentRow({
 function RepositoryLink({ url }: { url: string | null }) {
   if (url === null) {
     return (
-      <span className="inline-flex max-w-full min-w-0 items-center gap-2 text-slate-500">
+      <span className="inline-flex max-w-full min-w-0 items-center gap-2 text-sm font-medium text-neutral-400">
         <ExternalLink size={16} aria-hidden="true" />
         <span className="truncate">GitHub-ссылка не указана</span>
       </span>
@@ -333,7 +380,7 @@ function RepositoryLink({ url }: { url: string | null }) {
       href={url}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex max-w-full min-w-0 items-center gap-2 font-medium text-teal-700 hover:text-teal-800 hover:underline"
+      className="inline-flex max-w-full min-w-0 items-center gap-2 text-sm font-medium text-[#3e79ac] hover:underline"
       title={url}
     >
       <ExternalLink size={16} aria-hidden="true" />
@@ -342,22 +389,175 @@ function RepositoryLink({ url }: { url: string | null }) {
   );
 }
 
-function InfoLine({ icon, label }: { icon?: ReactNode; label: string }) {
+type StudentActivity = {
+  label: string;
+  seenLabel: string | null;
+  tone: "dark" | "green" | "neutral" | "red";
+  icon: ReactNode;
+};
+
+function getStudentActivity(
+  student: StudentListItem,
+  opened: boolean,
+): StudentActivity {
+  if (student.lastError) {
+    return {
+      label: "ошибка",
+      seenLabel: null,
+      tone: "red",
+      icon: <AlertCircle size={14} aria-hidden="true" />,
+    };
+  }
+
+  if (student.repositoryUrl === null) {
+    return {
+      label: "нет ссылки",
+      seenLabel: null,
+      tone: "neutral",
+      icon: <ExternalLink size={14} aria-hidden="true" />,
+    };
+  }
+
+  if (student.lastNewCommitsCount !== null) {
+    if (student.lastNewCommitsCount > 0) {
+      return {
+        label: formatCommitsCount(student.lastNewCommitsCount),
+        seenLabel: opened ? "открыто" : "к проверке",
+        tone: opened ? "green" : "dark",
+        icon: opened ? (
+          <CheckCircle2 size={14} aria-hidden="true" />
+        ) : (
+          <ArrowRight size={14} aria-hidden="true" />
+        ),
+      };
+    }
+
+    return {
+      label: "0 коммитов",
+      seenLabel: "без изменений",
+      tone: "neutral",
+      icon: <CheckCircle2 size={14} aria-hidden="true" />,
+    };
+  }
+
+  if (student.lastUpdateResult === "cloned") {
+    return {
+      label: "первое состояние",
+      seenLabel: opened ? "открыто" : "к проверке",
+      tone: opened ? "green" : "dark",
+      icon: opened ? (
+        <CheckCircle2 size={14} aria-hidden="true" />
+      ) : (
+        <ArrowRight size={14} aria-hidden="true" />
+      ),
+    };
+  }
+
+  if (student.lastUpdatedAt === null) {
+    return {
+      label: "нет обновлений",
+      seenLabel: null,
+      tone: "neutral",
+      icon: <Clock3 size={14} aria-hidden="true" />,
+    };
+  }
+
+  return {
+    label: student.statusLabel,
+    seenLabel: opened ? "открыто" : null,
+    tone: opened ? "green" : "neutral",
+    icon: opened ? (
+      <CheckCircle2 size={14} aria-hidden="true" />
+    ) : (
+      <Clock3 size={14} aria-hidden="true" />
+    ),
+  };
+}
+
+function getStudentUpdateMarker(student: StudentListItem): string | null {
+  return student.lastUpdatedAt;
+}
+
+function isStudentUpdateOpened(
+  student: StudentListItem,
+  openedUpdates: Record<string, string>,
+): boolean {
+  const marker = getStudentUpdateMarker(student);
+
+  return marker !== null && openedUpdates[student.studentId] === marker;
+}
+
+function readOpenedUpdates(): Record<string, string> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    const raw = window.localStorage.getItem(openedUpdatesStorageKey);
+    const parsed = raw ? JSON.parse(raw) : {};
+
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return Object.fromEntries(
+        Object.entries(parsed).filter(
+          (entry): entry is [string, string] => typeof entry[1] === "string",
+        ),
+      );
+    }
+  } catch {
+    return {};
+  }
+
+  return {};
+}
+
+function writeOpenedUpdates(value: Record<string, string>) {
+  try {
+    window.localStorage.setItem(openedUpdatesStorageKey, JSON.stringify(value));
+  } catch {
+    return;
+  }
+}
+
+function formatCommitsCount(value: number): string {
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return `${value} коммит`;
+  }
+
+  if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) {
+    return `${value} коммита`;
+  }
+
+  return `${value} коммитов`;
+}
+
+function Notice({
+  ok,
+  children,
+}: {
+  ok: boolean;
+  children: ReactNode;
+}) {
   return (
-    <p className="flex max-w-full min-w-0 items-center gap-2 whitespace-nowrap">
-      {icon ? <span className="text-slate-400">{icon}</span> : null}
-      <span className="truncate">{label}</span>
-    </p>
+    <div
+      className={[
+        "flex items-start gap-3 rounded-lg px-4 py-3 text-sm",
+        ok ? "bg-[#edf8ef] text-[#4fa75b]" : "bg-[#fff1ed] text-[#d45b51]",
+      ].join(" ")}
+    >
+      {ok ? (
+        <CheckCircle2 className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
+      ) : (
+        <AlertCircle className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
+      )}
+      <p>{children}</p>
+    </div>
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <span className="inline-flex min-h-7 items-center rounded-lg border border-teal-200 bg-teal-50 px-2.5 text-xs font-medium text-teal-800">
-      {status}
-    </span>
-  );
-}
+const openedUpdatesStorageKey = "pilot-tracker:opened-student-updates";
 
 function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat("ru-RU", {
@@ -420,13 +620,13 @@ function StudentFormModal({
         {student ? <input type="hidden" name="studentId" value={student.studentId} /> : null}
 
         {errorMessage ? (
-          <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+          <div className="flex items-start gap-3 rounded-lg bg-[#fff1ed] p-3 text-sm text-[#d45b51]">
             <AlertCircle className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
             <p>{errorMessage}</p>
           </div>
         ) : null}
 
-        <label className="grid gap-2 text-sm font-medium text-slate-800">
+        <label className="grid gap-2 text-sm font-medium text-neutral-700">
           Имя студента
           <input
             name="displayName"
@@ -435,12 +635,12 @@ function StudentFormModal({
               setDisplayName(event.target.value);
               onClearError();
             }}
-            className="min-h-11 rounded-lg border border-slate-300 px-3 text-slate-950 outline-none focus:border-teal-700"
+            className="min-h-11 rounded-lg border-0 bg-[#f7f7f5] px-3 text-neutral-950 outline-none ring-1 ring-[#ebeae7] focus:ring-[#4fa75b]"
             disabled={isPending}
           />
         </label>
 
-        <label className="grid gap-2 text-sm font-medium text-slate-800">
+        <label className="grid gap-2 text-sm font-medium text-neutral-700">
           Дополнительная информация
           <textarea
             name="notes"
@@ -449,12 +649,12 @@ function StudentFormModal({
               setNotes(event.target.value);
               onClearError();
             }}
-            className="min-h-24 rounded-lg border border-slate-300 px-3 py-2 text-slate-950 outline-none focus:border-teal-700"
+            className="min-h-24 rounded-lg border-0 bg-[#f7f7f5] px-3 py-2 text-neutral-950 outline-none ring-1 ring-[#ebeae7] focus:ring-[#4fa75b]"
             disabled={isPending}
           />
         </label>
 
-        <label className="grid gap-2 text-sm font-medium text-slate-800">
+        <label className="grid gap-2 text-sm font-medium text-neutral-700">
           GitHub-репозиторий
           <input
             name="repositoryUrl"
@@ -463,14 +663,14 @@ function StudentFormModal({
               setRepositoryUrl(event.target.value);
               onClearError();
             }}
-            className="min-h-11 rounded-lg border border-slate-300 px-3 text-slate-950 outline-none focus:border-teal-700"
+            className="min-h-11 rounded-lg border-0 bg-[#f7f7f5] px-3 text-neutral-950 outline-none ring-1 ring-[#ebeae7] focus:ring-[#4fa75b]"
             placeholder="https://github.com/owner/repository"
             disabled={isPending}
           />
         </label>
 
         {student ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="rounded-lg bg-[#fff7e8] p-3 text-sm text-[#b87522]">
             Изменение GitHub-ссылки повлияет на будущие обновления проекта.
           </p>
         ) : null}
@@ -478,7 +678,7 @@ function StudentFormModal({
         <div className="flex justify-end gap-2 pt-2">
           <button
             type="button"
-            className="min-h-10 rounded-lg border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:border-slate-300"
+            className="min-h-10 rounded-full bg-[#f7f7f5] px-4 text-sm font-medium text-neutral-700 hover:bg-[#f1f1ef]"
             onClick={onClose}
             disabled={isPending}
           >
@@ -486,7 +686,7 @@ function StudentFormModal({
           </button>
           <button
             type="submit"
-            className="min-h-10 rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+            className="min-h-10 rounded-full bg-neutral-950 px-4 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
             disabled={isPending}
           >
             {isPending ? "Сохранение..." : "Сохранить"}
@@ -511,16 +711,16 @@ function DeleteModal({
   return (
     <Modal onClose={onCancel} title="Удалить студента">
       <div className="grid gap-4">
-        <p className="text-sm text-slate-700">
+        <p className="text-sm text-neutral-700">
           Студент «{student.displayName}» будет удален из локальных данных приложения.
         </p>
-        <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <p className="rounded-lg bg-[#fff7e8] p-3 text-sm text-[#b87522]">
           Физические папки репозиториев и review-копий не будут удалены.
         </p>
         <div className="flex justify-end gap-2">
           <button
             type="button"
-            className="min-h-10 rounded-lg border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:border-slate-300"
+            className="min-h-10 rounded-full bg-[#f7f7f5] px-4 text-sm font-medium text-neutral-700 hover:bg-[#f1f1ef]"
             onClick={onCancel}
             disabled={isPending}
           >
@@ -528,7 +728,7 @@ function DeleteModal({
           </button>
           <button
             type="button"
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60"
+            className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#d45b51] px-4 text-sm font-medium text-white hover:bg-[#c74f45] disabled:opacity-60"
             onClick={onConfirm}
             disabled={isPending}
           >
@@ -551,13 +751,13 @@ function Modal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
-      <section className="w-full max-w-xl rounded-lg bg-white p-5 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/45 px-4 py-6">
+      <section className="w-full max-w-xl rounded-lg bg-white p-5 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
         <div className="mb-4 flex items-center justify-between gap-4">
-          <h2 className="text-xl font-semibold text-slate-950">{title}</h2>
+          <h2 className="text-xl font-semibold text-neutral-950">{title}</h2>
           <button
             type="button"
-            className="inline-flex size-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-slate-300"
+            className="inline-flex size-9 items-center justify-center rounded-full bg-[#f7f7f5] text-neutral-600 hover:bg-[#f1f1ef]"
             onClick={onClose}
             title="Закрыть"
           >
