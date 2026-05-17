@@ -22,6 +22,7 @@ describe("локальное хранилище", () => {
 
     expect(data.studentsFile.students).toEqual([]);
     expect(data.projectsFile.projects).toEqual([]);
+    expect(data.aiAnalysisJobsFile.aiAnalysisJobs).toEqual([]);
     expect(data.settingsFile.settings.dataRoot).toBe("data");
 
     const studentsJson = await readFile(
@@ -33,6 +34,17 @@ describe("локальное хранилище", () => {
     expect(JSON.parse(studentsJson)).toEqual({
       schemaVersion: 1,
       students: [],
+    });
+
+    const aiJobsJson = await readFile(
+      join(tempRoot, "data", "app", "ai-analysis-jobs.json"),
+      "utf8",
+    );
+
+    expect(aiJobsJson.endsWith("\n")).toBe(true);
+    expect(JSON.parse(aiJobsJson)).toEqual({
+      schemaVersion: 1,
+      aiAnalysisJobs: [],
     });
   });
 });

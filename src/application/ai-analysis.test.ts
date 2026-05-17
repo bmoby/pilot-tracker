@@ -16,6 +16,11 @@ import type {
 import { AppStorage } from "@/storage/app-storage";
 import { updateAllProjects } from "./project-updates";
 import {
+  enqueueAiAnalysisJob,
+  recoverInterruptedAiAnalysisJobs,
+  runAiAnalysisQueueOnce,
+} from "./ai-analysis-queue";
+import {
   runAiAnalysisForUpdate,
   type AiAnalysisGitClient,
 } from "./ai-analysis";
@@ -113,6 +118,14 @@ class FakeAiGitClient implements AiAnalysisGitClient {
     await rm(reviewPath, { recursive: true, force: true });
     this.heads.delete(reviewPath);
     this.statuses.delete(reviewPath);
+  }
+
+  async restoreWorktreeToCommit(
+    reviewPath: string,
+    commit: string,
+  ): Promise<void> {
+    this.heads.set(reviewPath, commit);
+    this.statuses.set(reviewPath, "");
   }
 
   async readCommitLog(): Promise<string> {
@@ -349,6 +362,106 @@ describe("ручной ИИ-анализ обновления", () => {
     expect(
       new Set(data.aiReportsFile.aiReports.map((report) => report.id)).size,
     ).toBe(2);
+  });
+
+  it("ставит ИИ-анализ в очередь и не создает дубль активного задания", async () => {
+    const storage = await createStorage();
+    const { eventId } = await createSuccessfulUpdate(storage);
+
+    const firstResult = await enqueueAiAnalysisJob(
+      { updateEventId: eventId },
+      storage,
+      { startWorker: false },
+    );
+    const secondResult = await enqueueAiAnalysisJob(
+      { updateEventId: eventId },
+      storage,
+      { startWorker: false },
+    );
+
+    expect(firstResult.ok).toBe(true);
+    expect(secondResult.ok).toBe(true);
+    if (!firstResult.ok || !secondResult.ok) {
+      throw new Error("Постановка ИИ-анализа в очередь должна быть успешной.");
+    }
+
+    const data = await storage.load();
+
+    expect(firstResult.value.alreadyQueued).toBe(false);
+    expect(secondResult.value.alreadyQueued).toBe(true);
+    expect(secondResult.value.jobId).toBe(firstResult.value.jobId);
+    expect(data.aiAnalysisJobsFile.aiAnalysisJobs).toHaveLength(1);
+    expect(data.aiAnalysisJobsFile.aiAnalysisJobs[0]?.status).toBe("queued");
+  });
+
+  it("выполняет queued-задание и связывает его с готовым ИИ-рапортом", async () => {
+    const storage = await createStorage();
+    const { eventId, newCommit } = await createSuccessfulUpdate(storage);
+    const git = new FakeAiGitClient();
+    const codex = new FakeCodexClient();
+    git.availableCommits.add(newCommit);
+
+    const enqueueResult = await enqueueAiAnalysisJob(
+      { updateEventId: eventId },
+      storage,
+      { startWorker: false },
+    );
+
+    expect(enqueueResult.ok).toBe(true);
+
+    const processed = await runAiAnalysisQueueOnce(
+      storage,
+      {
+        gitClient: git,
+        codexClient: codex,
+        pullRequestClient: new FakePullRequestClient(),
+      },
+      2,
+    );
+
+    const data = await storage.load();
+    const job = data.aiAnalysisJobsFile.aiAnalysisJobs[0];
+    const report = data.aiReportsFile.aiReports[0];
+
+    expect(processed).toBe(1);
+    expect(codex.calls).toHaveLength(1);
+    expect(job?.status).toBe("completed");
+    expect(job?.aiReportId).toBe(report?.id);
+    expect(report?.status).toBe("ready");
+  });
+
+  it("помечает running-задание как прерванное после перезапуска процесса", async () => {
+    const storage = await createStorage();
+    const { eventId } = await createSuccessfulUpdate(storage);
+
+    const enqueueResult = await enqueueAiAnalysisJob(
+      { updateEventId: eventId },
+      storage,
+      { startWorker: false },
+    );
+
+    expect(enqueueResult.ok).toBe(true);
+
+    await storage.updateFiles(["aiAnalysisJobsFile"], (data) => {
+      const job = data.aiAnalysisJobsFile.aiAnalysisJobs[0];
+
+      if (job === undefined) {
+        throw new Error("Задание ИИ-анализа должно быть создано.");
+      }
+
+      job.status = "running";
+      job.startedAt = job.requestedAt;
+      job.updatedAt = job.requestedAt;
+    });
+
+    await recoverInterruptedAiAnalysisJobs(storage);
+
+    const data = await storage.load();
+    const job = data.aiAnalysisJobsFile.aiAnalysisJobs[0];
+
+    expect(job?.status).toBe("interrupted");
+    expect(job?.lastError).toContain("прерван");
+    expect(job?.finishedAt).not.toBeNull();
   });
 });
 

@@ -65,6 +65,7 @@ export type GitReviewCopyClient = {
     commit: string,
   ): Promise<void>;
   removeWorktree(repositoryPath: string, reviewPath: string): Promise<void>;
+  restoreWorktreeToCommit(reviewPath: string, commit: string): Promise<void>;
 };
 
 export type GitAnalysisClient = {
@@ -219,6 +220,14 @@ export class GitCliClient implements GitProjectClient, GitAnalysisClient {
       ["worktree", "remove", reviewPath],
       repositoryPath,
     );
+  }
+
+  async restoreWorktreeToCommit(
+    reviewPath: string,
+    commit: string,
+  ): Promise<void> {
+    await runGit(this.command, ["reset", "--hard", commit], reviewPath);
+    await runGit(this.command, ["clean", "-fd"], reviewPath);
   }
 
   async readCommitLog(

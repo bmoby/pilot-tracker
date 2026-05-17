@@ -20,6 +20,7 @@ export const updateRunIdSchema = prefixedId("run");
 export const updateEventIdSchema = prefixedId("update");
 export const commentIdSchema = prefixedId("comment");
 export const reviewStatusIdSchema = prefixedId("review_status");
+export const aiAnalysisJobIdSchema = prefixedId("ai_job");
 export const aiReportIdSchema = prefixedId("ai_report");
 
 export const isoUtcDateSchema = z
@@ -183,6 +184,40 @@ export const commentSchema = z.object({
   updatedAt: isoUtcDateSchema,
 });
 export type Comment = z.infer<typeof commentSchema>;
+
+export const aiAnalysisJobStatusSchema = z.enum([
+  "queued",
+  "running",
+  "completed",
+  "failed",
+  "interrupted",
+]);
+export type AiAnalysisJobStatus = z.infer<typeof aiAnalysisJobStatusSchema>;
+
+export const aiAnalysisJobStatusLabels: Record<AiAnalysisJobStatus, string> = {
+  queued: "ожидает",
+  running: "выполняется",
+  completed: "готово",
+  failed: "ошибка",
+  interrupted: "прервано",
+};
+
+export const aiAnalysisJobSchema = z.object({
+  id: aiAnalysisJobIdSchema,
+  studentId: studentIdSchema,
+  projectId: projectIdSchema,
+  updateEventId: updateEventIdSchema,
+  aiReportId: aiReportIdSchema.nullable(),
+  status: aiAnalysisJobStatusSchema,
+  attempts: z.number().int().nonnegative(),
+  requestedAt: isoUtcDateSchema,
+  startedAt: isoUtcDateSchema.nullable(),
+  finishedAt: isoUtcDateSchema.nullable(),
+  lastError: z.string().nullable(),
+  createdAt: isoUtcDateSchema,
+  updatedAt: isoUtcDateSchema,
+});
+export type AiAnalysisJob = z.infer<typeof aiAnalysisJobSchema>;
 
 export const aiReportStatusSchema = z.enum(["running", "ready", "error"]);
 export type AiReportStatus = z.infer<typeof aiReportStatusSchema>;
@@ -387,6 +422,13 @@ export const reviewStatusesFileSchema = z.object({
 
 export type ReviewStatusesFile = z.infer<typeof reviewStatusesFileSchema>;
 
+export const aiAnalysisJobsFileSchema = z.object({
+  schemaVersion: z.literal(SCHEMA_VERSION),
+  aiAnalysisJobs: z.array(aiAnalysisJobSchema),
+});
+
+export type AiAnalysisJobsFile = z.infer<typeof aiAnalysisJobsFileSchema>;
+
 export const aiReportsFileSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   aiReports: z.array(aiReportSchema),
@@ -408,6 +450,7 @@ export type AppData = {
   updateEventsFile: UpdateEventsFile;
   commentsFile: CommentsFile;
   reviewStatusesFile: ReviewStatusesFile;
+  aiAnalysisJobsFile: AiAnalysisJobsFile;
   aiReportsFile: AiReportsFile;
   settingsFile: SettingsFile;
 };

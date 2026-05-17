@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowRight,
+  Bot,
   CheckCircle2,
   Clock3,
   ExternalLink,
@@ -22,6 +23,7 @@ import {
   type StudentActionState,
   updateStudentAction,
   updateAllProjectsAction,
+  enqueueLatestAiAnalysesAction,
 } from "./students-actions";
 import type { UpdateRunListItem } from "@/application/project-updates";
 import type { StudentListItem } from "@/application/students";
@@ -30,6 +32,8 @@ import { AppShell } from "./app-shell";
 type StudentsPageProps = {
   initialStudents: StudentListItem[];
   latestUpdateRun: UpdateRunListItem | null;
+  aiAnalysisQueueCandidateCount: number;
+  activeAiAnalysisJobsCount: number;
 };
 
 type FormMode =
@@ -41,7 +45,12 @@ type FormMode =
       student: StudentListItem;
     };
 
-export function StudentsPage({ initialStudents, latestUpdateRun }: StudentsPageProps) {
+export function StudentsPage({
+  initialStudents,
+  latestUpdateRun,
+  aiAnalysisQueueCandidateCount,
+  activeAiAnalysisJobsCount,
+}: StudentsPageProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [formMode, setFormMode] = useState<FormMode | null>(null);
@@ -102,6 +111,15 @@ export function StudentsPage({ initialStudents, latestUpdateRun }: StudentsPageP
     });
   }
 
+  function enqueueAiAnalyses() {
+    startTransition(async () => {
+      const result = await enqueueLatestAiAnalysesAction();
+      setFormError(null);
+      setMessage(result);
+      router.refresh();
+    });
+  }
+
   function markStudentOpened(student: StudentListItem) {
     const marker = getStudentUpdateMarker(student);
 
@@ -139,6 +157,21 @@ export function StudentsPage({ initialStudents, latestUpdateRun }: StudentsPageP
             >
               <RefreshCw size={18} aria-hidden="true" />
               {isPending ? "Обновление..." : "Обновить проекты"}
+            </button>
+            <button
+              type="button"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#eef7ff] px-4 text-sm font-medium text-[#3e79ac] hover:bg-[#e4f0fb] disabled:opacity-60"
+              onClick={enqueueAiAnalyses}
+              disabled={isPending || aiAnalysisQueueCandidateCount === 0}
+              title={
+                aiAnalysisQueueCandidateCount === 0
+                  ? "Нет последних обновлений, подходящих для ИИ-анализа"
+                  : "Поставить подходящие последние обновления в очередь ИИ-анализа"
+              }
+            >
+              <Bot size={18} aria-hidden="true" />
+              ИИ в очередь
+              {activeAiAnalysisJobsCount > 0 ? ` · ${activeAiAnalysisJobsCount}` : null}
             </button>
             <button
               type="button"
@@ -321,6 +354,17 @@ function StudentRow({
               {activity.seenLabel}
             </span>
           ) : null}
+          {student.lastAiAnalysisJobStatusLabel ? (
+            <span
+              className={[
+                "inline-flex min-h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium",
+                getAiJobClassName(student.lastAiAnalysisJobStatus),
+              ].join(" ")}
+            >
+              <Bot size={14} aria-hidden="true" />
+              ИИ: {student.lastAiAnalysisJobStatusLabel}
+            </span>
+          ) : null}
         </div>
         {student.lastError ? (
           <span className="mt-2 inline-flex max-w-full items-start gap-2 rounded-lg bg-[#fff1ed] px-3 py-2 text-sm font-medium text-[#d45b51]">
@@ -476,6 +520,22 @@ function getStudentActivity(
 
 function getStudentUpdateMarker(student: StudentListItem): string | null {
   return student.lastUpdatedAt;
+}
+
+function getAiJobClassName(status: StudentListItem["lastAiAnalysisJobStatus"]) {
+  if (status === "completed") {
+    return "bg-[#edf8ef] text-[#4fa75b]";
+  }
+
+  if (status === "queued" || status === "running") {
+    return "bg-[#eef7ff] text-[#3e79ac]";
+  }
+
+  if (status === "failed" || status === "interrupted") {
+    return "bg-[#fff1ed] text-[#d45b51]";
+  }
+
+  return "bg-[#f7f7f5] text-neutral-500";
 }
 
 function isStudentUpdateOpened(

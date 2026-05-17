@@ -1,7 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { runAiAnalysisForUpdate } from "@/application/ai-analysis";
+import {
+  enqueueAiAnalysisJob,
+  enqueueAiAnalysisJobsForLatestUpdates,
+} from "@/application/ai-analysis-queue";
 import {
   updateAllProjects,
   updateSingleProject,
@@ -266,7 +269,7 @@ export async function runAiAnalysisAction(
   formData: FormData,
 ): Promise<StudentActionState> {
   const studentId = getFormString(formData, "studentId");
-  const result = await runAiAnalysisForUpdate({
+  const result = await enqueueAiAnalysisJob({
     updateEventId: getFormString(formData, "updateEventId"),
   });
 
@@ -282,10 +285,31 @@ export async function runAiAnalysisAction(
 
   return {
     ok: true,
-    message:
-      result.value.status === "ready"
-        ? "ИИ-анализ завершен, рапорт сохранен."
-        : "ИИ-анализ завершился ошибкой, причина сохранена в рапорте.",
+    message: result.value.alreadyQueued
+      ? "ИИ-анализ уже стоит в очереди."
+      : "ИИ-анализ поставлен в очередь.",
+  };
+}
+
+export async function enqueueLatestAiAnalysesAction(): Promise<StudentActionState> {
+  const result = await enqueueAiAnalysisJobsForLatestUpdates();
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      message: result.error.message,
+    };
+  }
+
+  revalidatePath("/");
+
+  return {
+    ok: true,
+    message: [
+      `В очередь добавлено: ${result.value.queued}.`,
+      `Уже в очереди: ${result.value.alreadyQueued}.`,
+      `Пропущено: ${result.value.skipped}.`,
+    ].join(" "),
   };
 }
 

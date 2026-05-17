@@ -1,4 +1,5 @@
 import type {
+  AiAnalysisJobsFile,
   AiReportsFile,
   AppSettings,
   CommentsFile,
@@ -96,6 +97,13 @@ export function createInitialReviewStatusesFile(): ReviewStatusesFile {
   return {
     schemaVersion: SCHEMA_VERSION,
     reviewStatuses: [],
+  };
+}
+
+export function createInitialAiAnalysisJobsFile(): AiAnalysisJobsFile {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    aiAnalysisJobs: [],
   };
 }
 
