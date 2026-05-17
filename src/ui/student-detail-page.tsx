@@ -589,6 +589,20 @@ function UpdateEventActionsPanel({
   onOpenCode: (event: FormEvent<HTMLFormElement>) => void;
   onUpdateStatus: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const activeAiJob =
+    event.aiAnalysisJob?.status === "queued" ||
+    event.aiAnalysisJob?.status === "running";
+  const aiButtonLabel =
+    event.aiAnalysisJob?.status === "queued"
+      ? "ИИ-анализ в очереди"
+      : event.aiAnalysisJob?.status === "running"
+        ? "ИИ-анализ выполняется"
+        : "Поставить ИИ в очередь";
+  const aiButtonTitle = activeAiJob
+    ? "ИИ-анализ уже ожидает выполнения или выполняется"
+    : event.aiAnalysisDisabledReason ??
+      "Поставить ИИ-анализ выбранного обновления в очередь";
+
   return (
     <section className="rounded-lg bg-[#fbfbfa] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -598,20 +612,30 @@ function UpdateEventActionsPanel({
         </StatusPill>
       </div>
 
+      {event.aiAnalysisJob ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-neutral-500">
+          <StatusPill tone={getAiJobTone(event.aiAnalysisJob.status)}>
+            ИИ: {event.aiAnalysisJob.statusLabel}
+          </StatusPill>
+          {event.aiAnalysisJob.lastError ? (
+            <span>{event.aiAnalysisJob.lastError}</span>
+          ) : null}
+        </div>
+      ) : null}
+
       <form className="mt-4 grid gap-2" onSubmit={onRunAiAnalysis}>
         <input type="hidden" name="studentId" value={studentId} />
         <input type="hidden" name="updateEventId" value={event.id} />
         <button
           type="submit"
           className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-neutral-950 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
-          disabled={isPending || event.aiAnalysisDisabledReason !== null}
-          title={
-            event.aiAnalysisDisabledReason ??
-            "Запустить ИИ-анализ выбранного обновления"
+          disabled={
+            isPending || activeAiJob || event.aiAnalysisDisabledReason !== null
           }
+          title={aiButtonTitle}
         >
           <Bot size={16} aria-hidden="true" />
-          Запустить ИИ-анализ
+          {aiButtonLabel}
         </button>
         {event.aiAnalysisDisabledReason ? (
           <p className="text-sm text-neutral-500">
@@ -1141,6 +1165,24 @@ function getReviewTone(status: UpdateEventListItem["reviewStatus"]): Tone {
 
   if (status === "needs_recheck") {
     return "amber";
+  }
+
+  return "neutral";
+}
+
+function getAiJobTone(
+  status: NonNullable<UpdateEventListItem["aiAnalysisJob"]>["status"],
+): Tone {
+  if (status === "completed") {
+    return "green";
+  }
+
+  if (status === "running" || status === "queued") {
+    return "blue";
+  }
+
+  if (status === "failed" || status === "interrupted") {
+    return "red";
   }
 
   return "neutral";

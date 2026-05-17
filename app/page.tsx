@@ -26,6 +26,8 @@ export default async function HomePage() {
     <StudentsPage
       initialStudents={result.value.students}
       latestUpdateRun={result.value.latestUpdateRun}
+      aiAnalysisQueueCandidateCount={result.value.aiAnalysisQueueCandidateCount}
+      activeAiAnalysisJobsCount={result.value.activeAiAnalysisJobsCount}
     />
   );
 }

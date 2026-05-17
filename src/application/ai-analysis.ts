@@ -43,6 +43,7 @@ const TECHNICAL_DETAILS_LIMIT = 1_200;
 
 export type RunAiAnalysisInput = {
   updateEventId: string;
+  aiAnalysisJobId?: string;
 };
 
 export type RunAiAnalysisResponse = {
@@ -101,8 +102,7 @@ export async function runAiAnalysisForUpdate(
       new GitHubCliClient(data.settingsFile.settings.tools.gh.command);
     const report = createRunningReport(data, event);
 
-    data.aiReportsFile.aiReports.push(report);
-    await storage.saveFiles(data, ["aiReportsFile"]);
+    await saveReportSnapshot(storage, report, input.aiAnalysisJobId);
 
     const prepared = await prepareReviewCopy({ storage, git, event, project });
 
@@ -112,7 +112,7 @@ export async function runAiAnalysisForUpdate(
         prepared.error.message,
         prepared.error.details ?? null,
       );
-      await storage.saveFiles(data, ["aiReportsFile"]);
+      await saveReportSnapshot(storage, report, input.aiAnalysisJobId);
       return success(toResponse(report));
     }
 
@@ -139,7 +139,7 @@ export async function runAiAnalysisForUpdate(
         context.error.message,
         context.error.details ?? null,
       );
-      await storage.saveFiles(data, ["aiReportsFile"]);
+      await saveReportSnapshot(storage, report, input.aiAnalysisJobId);
       return success(toResponse(report));
     }
 
@@ -165,7 +165,7 @@ export async function runAiAnalysisForUpdate(
     } catch (error) {
       const appError = normalizeCodexError(error);
       finishReportWithError(report, appError.message, appError.details ?? null);
-      await storage.saveFiles(data, ["aiReportsFile"]);
+      await saveReportSnapshot(storage, report, input.aiAnalysisJobId);
       return success(toResponse(report));
     }
 
@@ -177,13 +177,13 @@ export async function runAiAnalysisForUpdate(
         parsed.error.message,
         parsed.error.details ?? null,
       );
-      await storage.saveFiles(data, ["aiReportsFile"]);
+      await saveReportSnapshot(storage, report, input.aiAnalysisJobId);
       return success(toResponse(report));
     }
 
     finishReportWithResult(report, parsed.value, context.value);
     updateProjectDescription(project, report, parsed.value);
-    await storage.saveFiles(data, ["aiReportsFile", "projectsFile"]);
+    await saveReportSnapshot(storage, report, input.aiAnalysisJobId, project);
 
     return success(toResponse(report));
   } catch (error) {
@@ -191,7 +191,10 @@ export async function runAiAnalysisForUpdate(
   }
 }
 
-function getBlockedReason(data: AppData, event: UpdateEvent): AppError | null {
+export function getAiAnalysisBlockedReason(
+  data: AppData,
+  event: UpdateEvent,
+): AppError | null {
   if (event.newCommit === null) {
     return {
       code: "ai_analysis_commit_missing",
@@ -229,6 +232,8 @@ function getBlockedReason(data: AppData, event: UpdateEvent): AppError | null {
 
   return null;
 }
+
+const getBlockedReason = getAiAnalysisBlockedReason;
 
 function canAnalyzeUpdateEvent(event: UpdateEvent): boolean {
   if (event.result === "cloned" && event.previousCommit === null) {
@@ -515,6 +520,57 @@ function updateProjectDescription(
     error: null,
   };
   project.updatedAt = now;
+}
+
+async function saveReportSnapshot(
+  storage: AppStorage,
+  report: AiReport,
+  aiAnalysisJobId?: string,
+  project?: Project,
+): Promise<void> {
+  const keys: Array<keyof AppData> = ["aiReportsFile"];
+
+  if (aiAnalysisJobId !== undefined) {
+    keys.push("aiAnalysisJobsFile");
+  }
+
+  if (project !== undefined) {
+    keys.push("projectsFile");
+  }
+
+  await storage.updateFiles(keys, (data) => {
+    const reportIndex = data.aiReportsFile.aiReports.findIndex(
+      (item) => item.id === report.id,
+    );
+
+    if (reportIndex === -1) {
+      data.aiReportsFile.aiReports.push({ ...report });
+    } else {
+      data.aiReportsFile.aiReports[reportIndex] = { ...report };
+    }
+
+    if (aiAnalysisJobId !== undefined) {
+      const job = data.aiAnalysisJobsFile.aiAnalysisJobs.find(
+        (item) => item.id === aiAnalysisJobId,
+      );
+
+      if (job !== undefined) {
+        job.aiReportId = report.id;
+        job.updatedAt = report.updatedAt;
+      }
+    }
+
+    if (project !== undefined) {
+      const projectToUpdate = data.projectsFile.projects.find(
+        (item) => item.id === project.id,
+      );
+
+      if (projectToUpdate !== undefined) {
+        projectToUpdate.aiDescription = project.aiDescription;
+        projectToUpdate.updatedAt = project.updatedAt;
+      }
+    }
+  });
 }
 
 function buildPrompt({

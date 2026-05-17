@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import type { z } from "zod";
 import {
+  aiAnalysisJobsFileSchema,
   aiReportsFileSchema,
   commentsFileSchema,
   type AppData,
@@ -13,6 +14,7 @@ import {
 } from "@/domain/schemas";
 import {
   createInitialAiReportsFile,
+  createInitialAiAnalysisJobsFile,
   createInitialCommentsFile,
   createInitialProjectsFile,
   createInitialReviewStatusesFile,
@@ -67,6 +69,11 @@ const APP_FILE_DEFINITIONS = {
     fileName: "review-statuses.json",
     schema: reviewStatusesFileSchema,
     createInitialData: createInitialReviewStatusesFile,
+  },
+  aiAnalysisJobsFile: {
+    fileName: "ai-analysis-jobs.json",
+    schema: aiAnalysisJobsFileSchema,
+    createInitialData: createInitialAiAnalysisJobsFile,
   },
   aiReportsFile: {
     fileName: "ai-reports.json",
@@ -149,6 +156,10 @@ export class AppStorage {
         this.getFilePath("review-statuses.json"),
         reviewStatusesFileSchema,
       ),
+      aiAnalysisJobsFile: await readJsonFile(
+        this.getFilePath("ai-analysis-jobs.json"),
+        aiAnalysisJobsFileSchema,
+      ),
       aiReportsFile: await readJsonFile(
         this.getFilePath("ai-reports.json"),
         aiReportsFileSchema,
@@ -176,6 +187,34 @@ export class AppStorage {
     });
 
     this.writeQueue = operation.catch(() => undefined);
+    return operation;
+  }
+
+  async updateFiles<Result>(
+    keys: AppFileKey[],
+    mutator: (data: AppData) => Result | Promise<Result>,
+  ): Promise<Result> {
+    const operation = this.writeQueue.then(async () => {
+      const data = await this.load();
+      const result = await mutator(data);
+      validateAppDataConsistency(data);
+
+      for (const key of keys) {
+        const definition = APP_FILE_DEFINITIONS[key];
+        await safeWriteJsonFile(
+          this.getFilePath(definition.fileName),
+          data[key],
+          definition.schema,
+        );
+      }
+
+      return result;
+    });
+
+    this.writeQueue = operation.then(
+      () => undefined,
+      () => undefined,
+    );
     return operation;
   }
 
@@ -226,6 +265,9 @@ function validateAppDataConsistency(data: AppData): void {
   );
   const aiReportIds = new Set(
     data.aiReportsFile.aiReports.map((report) => report.id),
+  );
+  const aiAnalysisJobIds = new Set(
+    data.aiAnalysisJobsFile.aiAnalysisJobs.map((job) => job.id),
   );
   const reviewStatusIds = new Set(
     data.reviewStatusesFile.reviewStatuses.map((status) => status.id),
@@ -291,6 +333,13 @@ function validateAppDataConsistency(data: AppData): void {
     throw createStorageError(
       "storage_consistency_error",
       "В ИИ-рапортах найдены повторяющиеся идентификаторы.",
+    );
+  }
+
+  if (aiAnalysisJobIds.size !== data.aiAnalysisJobsFile.aiAnalysisJobs.length) {
+    throw createStorageError(
+      "storage_consistency_error",
+      "В заданиях ИИ-анализа найдены повторяющиеся идентификаторы.",
     );
   }
 
@@ -407,6 +456,55 @@ function validateAppDataConsistency(data: AppData): void {
         "storage_consistency_error",
         "Связь ИИ-рапорта и события обновления нарушена.",
       );
+    }
+  }
+
+  const activeAiJobEventIds = new Set<string>();
+
+  for (const job of data.aiAnalysisJobsFile.aiAnalysisJobs) {
+    const event = data.updateEventsFile.updateEvents.find(
+      (item) => item.id === job.updateEventId,
+    );
+
+    if (event === undefined) {
+      throw createStorageError(
+        "storage_consistency_error",
+        "Задание ИИ-анализа ссылается на отсутствующее событие обновления.",
+      );
+    }
+
+    if (
+      event.studentId !== job.studentId ||
+      event.projectId !== job.projectId
+    ) {
+      throw createStorageError(
+        "storage_consistency_error",
+        "Связь задания ИИ-анализа и события обновления нарушена.",
+      );
+    }
+
+    if (job.aiReportId !== null) {
+      const report = data.aiReportsFile.aiReports.find(
+        (item) => item.id === job.aiReportId,
+      );
+
+      if (report === undefined || report.updateEventId !== job.updateEventId) {
+        throw createStorageError(
+          "storage_consistency_error",
+          "Задание ИИ-анализа ссылается на отсутствующий или чужой ИИ-рапорт.",
+        );
+      }
+    }
+
+    if (job.status === "queued" || job.status === "running") {
+      if (activeAiJobEventIds.has(job.updateEventId)) {
+        throw createStorageError(
+          "storage_consistency_error",
+          "Для одного обновления найдено несколько активных заданий ИИ-анализа.",
+        );
+      }
+
+      activeAiJobEventIds.add(job.updateEventId);
     }
   }
 }

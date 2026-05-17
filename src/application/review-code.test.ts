@@ -55,6 +55,7 @@ class FakeReviewGitClient implements GitReviewCopyClient {
   readonly statuses = new Map<string, string>();
   readonly createdWorktrees: string[] = [];
   readonly removedWorktrees: string[] = [];
+  readonly restoredWorktrees: Array<{ reviewPath: string; commit: string }> = [];
   currentBranch = "main";
 
   async readHead(repositoryPath: string): Promise<string> {
@@ -95,6 +96,12 @@ class FakeReviewGitClient implements GitReviewCopyClient {
     this.heads.delete(reviewPath);
     this.statuses.delete(reviewPath);
     await rm(reviewPath, { recursive: true, force: true });
+  }
+
+  async restoreWorktreeToCommit(reviewPath: string, commit: string): Promise<void> {
+    this.restoredWorktrees.push({ reviewPath, commit });
+    this.heads.set(reviewPath, commit);
+    this.statuses.set(reviewPath, "");
   }
 }
 
@@ -199,7 +206,7 @@ describe("открытие кода обновления в VS Code", () => {
     expect(code.openedPaths).toEqual([]);
   });
 
-  it("не перезаписывает грязную review-копию", async () => {
+  it("восстанавливает грязную review-копию перед открытием", async () => {
     const storage = await createStorage();
     const { eventId, studentId, newCommit } = await createSuccessfulUpdate(storage);
     const git = new FakeReviewGitClient();
@@ -212,13 +219,10 @@ describe("открытие кода обновления в VS Code", () => {
 
     const result = await openUpdateCodeInVsCode({ updateEventId: eventId }, storage, git, code);
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe("review_copy_dirty");
-      expect(result.error.path).toBe(reviewPath);
-    }
+    expect(result.ok).toBe(true);
+    expect(git.restoredWorktrees).toEqual([{ reviewPath, commit: newCommit }]);
     expect(git.createdWorktrees).toEqual([]);
-    expect(code.openedPaths).toEqual([]);
+    expect(code.openedPaths).toEqual([reviewPath]);
   });
 
   it("пересоздает чистую review-копию с другим коммитом", async () => {

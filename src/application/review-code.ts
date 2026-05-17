@@ -296,12 +296,30 @@ async function validateExistingReviewCopy({
     const status = await git.readStatus(reviewCopyPath);
 
     if (status.trim().length > 0) {
-      return failure({
-        code: "review_copy_dirty",
-        message:
-          "Существующая review-копия содержит локальные изменения и не будет перезаписана.",
-        path: reviewCopyPath,
-      });
+      try {
+        await git.restoreWorktreeToCommit(reviewCopyPath, targetCommit);
+      } catch (error) {
+        return failure(
+          normalizeGitReviewError(
+            error,
+            "review_copy_restore_failed",
+            reviewCopyPath,
+          ),
+        );
+      }
+
+      const restoredStatus = await git.readStatus(reviewCopyPath);
+
+      if (restoredStatus.trim().length > 0) {
+        return failure({
+          code: "review_copy_restore_failed",
+          message:
+            "Git не смог восстановить review-копию до коммита обновления.",
+          path: reviewCopyPath,
+          details:
+            "После принудительного восстановления в review-копии остались локальные изменения.",
+        });
+      }
     }
 
     head = await git.readHead(reviewCopyPath);
@@ -493,6 +511,8 @@ function getReviewCodeMessage(code: string): string {
       return "Git не смог создать review-копию.";
     case "worktree_remove_failed":
       return "Git не смог удалить чистую несоответствующую review-копию.";
+    case "review_copy_restore_failed":
+      return "Git не смог восстановить review-копию до коммита обновления.";
     case "git_command_failed":
       return "Git-команда для review-копии завершилась ошибкой.";
     default:

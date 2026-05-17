@@ -1,5 +1,6 @@
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import type {
+  AiAnalysisJob,
   AppData,
   AiPullRequestContext,
   AiReport,
@@ -12,6 +13,7 @@ import type {
   UpdateRun,
 } from "@/domain/schemas";
 import {
+  aiAnalysisJobStatusLabels,
   projectStatusLabels,
   reviewStatusLabels,
   updateEventResultLabels,
@@ -48,6 +50,7 @@ import {
 import { AppStorage, getDefaultStorage } from "@/storage/app-storage";
 import { ensureDirectory, pathExists } from "@/storage/file-system";
 import { StorageError } from "@/storage/storage-error";
+import { startAiAnalysisQueueWorker } from "./ai-analysis-queue";
 
 export type UpdateRunListItem = {
   id: string;
@@ -87,6 +90,16 @@ export type AiReportListItem = {
   error: string | null;
 };
 
+export type AiAnalysisJobListItem = {
+  id: string;
+  status: AiAnalysisJob["status"];
+  statusLabel: string;
+  requestedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  lastError: string | null;
+};
+
 export type UpdateEventListItem = {
   id: string;
   result: UpdateEvent["result"];
@@ -98,6 +111,7 @@ export type UpdateEventListItem = {
   comments: ReviewCommentListItem[];
   aiReportsCount: number;
   aiReports: AiReportListItem[];
+  aiAnalysisJob: AiAnalysisJobListItem | null;
   aiAnalysisDisabledReason: string | null;
   startedAt: string;
   finishedAt: string | null;
@@ -196,6 +210,7 @@ export async function updateSingleProject(
 ): Promise<AppResult<ProjectUpdateResponse>> {
   try {
     const data = await storage.load();
+    startAiAnalysisQueueWorker(storage);
     const student = findStudent(data, studentId);
 
     if (student === null) {
@@ -711,6 +726,7 @@ export function toUpdateEventListItem(
     toReviewCommentListItem,
   );
   const aiReports = findEventAiReports(data, event.id).map(toAiReportListItem);
+  const aiAnalysisJob = findEventAiAnalysisJob(data, event.id);
 
   return {
     id: event.id,
@@ -726,6 +742,8 @@ export function toUpdateEventListItem(
     comments,
     aiReportsCount: aiReports.length,
     aiReports,
+    aiAnalysisJob:
+      aiAnalysisJob === null ? null : toAiAnalysisJobListItem(aiAnalysisJob),
     aiAnalysisDisabledReason: getAiAnalysisDisabledReason(data, event),
     startedAt: event.startedAt,
     finishedAt: event.finishedAt,
@@ -739,6 +757,17 @@ export function toUpdateEventListItem(
     hasNewChanges: event.hasNewChanges,
     error: event.error,
   };
+}
+
+function findEventAiAnalysisJob(
+  data: AppData,
+  eventId: string,
+): AiAnalysisJob | null {
+  return (
+    data.aiAnalysisJobsFile.aiAnalysisJobs
+      .filter((job) => job.updateEventId === eventId)
+      .sort(compareAiAnalysisJobs)[0] ?? null
+  );
 }
 
 function findEventAiReports(data: AppData, eventId: string): AiReport[] {
@@ -761,6 +790,32 @@ function toReviewCommentListItem(comment: Comment): ReviewCommentListItem {
     createdAt: comment.createdAt,
     updatedAt: comment.updatedAt,
   };
+}
+
+function toAiAnalysisJobListItem(job: AiAnalysisJob): AiAnalysisJobListItem {
+  return {
+    id: job.id,
+    status: job.status,
+    statusLabel: aiAnalysisJobStatusLabels[job.status],
+    requestedAt: job.requestedAt,
+    startedAt: job.startedAt,
+    finishedAt: job.finishedAt,
+    lastError: job.lastError,
+  };
+}
+
+function compareAiAnalysisJobs(
+  left: AiAnalysisJob,
+  right: AiAnalysisJob,
+): number {
+  const leftActive = left.status === "queued" || left.status === "running";
+  const rightActive = right.status === "queued" || right.status === "running";
+
+  if (leftActive !== rightActive) {
+    return leftActive ? -1 : 1;
+  }
+
+  return right.requestedAt.localeCompare(left.requestedAt);
 }
 
 function toAiReportListItem(report: AiReport): AiReportListItem {

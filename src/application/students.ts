@@ -1,5 +1,18 @@
-import type { AppData, Project, ProjectStatus, Student, UpdateEvent } from "@/domain/schemas";
-import { projectStatusLabels, updateEventResultLabels } from "@/domain/schemas";
+import type {
+  AiAnalysisJob,
+  AppData,
+  Project,
+  ProjectStatus,
+  Student,
+  UpdateEvent,
+} from "@/domain/schemas";
+import {
+  aiAnalysisJobStatusLabels,
+  projectStatusLabels,
+  updateEventResultLabels,
+} from "@/domain/schemas";
+import { getAiAnalysisBlockedReason } from "@/application/ai-analysis";
+import { startAiAnalysisQueueWorker } from "@/application/ai-analysis-queue";
 import { summarizeUpdateEvents } from "@/domain/update-rules";
 import {
   createStudentAndProject,
@@ -25,6 +38,9 @@ export type StudentListItem = {
   lastUpdateResult: string | null;
   lastUpdateResultLabel: string | null;
   lastNewCommitsCount: number | null;
+  lastAiAnalysisJobStatus: AiAnalysisJob["status"] | null;
+  lastAiAnalysisJobStatusLabel: string | null;
+  lastAiAnalysisJobUpdatedAt: string | null;
   lastError: string | null;
   status: ProjectStatus;
   statusLabel: string;
@@ -33,6 +49,8 @@ export type StudentListItem = {
 export type StudentsPageData = {
   students: StudentListItem[];
   latestUpdateRun: UpdateRunListItem | null;
+  aiAnalysisQueueCandidateCount: number;
+  activeAiAnalysisJobsCount: number;
 };
 
 export type UpdateStudentInput = StudentInput & {
@@ -47,10 +65,17 @@ export type DeleteStudentInput = {
 export async function listStudents(storage = getDefaultStorage()): Promise<AppResult<StudentsPageData>> {
   try {
     const data = await storage.load();
+    const activeAiAnalysisJobsCount = countActiveAiAnalysisJobs(data);
+
+    if (activeAiAnalysisJobsCount > 0) {
+      startAiAnalysisQueueWorker(storage);
+    }
 
     return success({
       students: buildStudentList(data),
       latestUpdateRun: getLatestUpdateRun(data),
+      aiAnalysisQueueCandidateCount: countAiAnalysisQueueCandidates(data),
+      activeAiAnalysisJobsCount,
     });
   } catch (error) {
     return failure(toAppError(error));
@@ -83,6 +108,8 @@ export async function createStudent(
     return success({
       students: buildStudentList(data),
       latestUpdateRun: getLatestUpdateRun(data),
+      aiAnalysisQueueCandidateCount: countAiAnalysisQueueCandidates(data),
+      activeAiAnalysisJobsCount: countActiveAiAnalysisJobs(data),
     });
   } catch (error) {
     return failure(toAppError(error));
@@ -151,6 +178,8 @@ export async function updateStudent(
     return success({
       students: buildStudentList(data),
       latestUpdateRun: getLatestUpdateRun(data),
+      aiAnalysisQueueCandidateCount: countAiAnalysisQueueCandidates(data),
+      activeAiAnalysisJobsCount: countActiveAiAnalysisJobs(data),
     });
   } catch (error) {
     return failure(toAppError(error));
@@ -206,6 +235,10 @@ export async function deleteStudent(
     data.reviewStatusesFile.reviewStatuses = data.reviewStatusesFile.reviewStatuses.filter(
       (status) => !removedUpdateIds.has(status.updateEventId),
     );
+    data.aiAnalysisJobsFile.aiAnalysisJobs =
+      data.aiAnalysisJobsFile.aiAnalysisJobs.filter(
+        (job) => !removedUpdateIds.has(job.updateEventId),
+      );
     data.aiReportsFile.aiReports = data.aiReportsFile.aiReports.filter(
       (report) => !removedUpdateIds.has(getStringField(report, "updateEventId") ?? ""),
     );
@@ -217,12 +250,15 @@ export async function deleteStudent(
       "updateEventsFile",
       "commentsFile",
       "reviewStatusesFile",
+      "aiAnalysisJobsFile",
       "aiReportsFile",
     ]);
 
     return success({
       students: buildStudentList(data),
       latestUpdateRun: getLatestUpdateRun(data),
+      aiAnalysisQueueCandidateCount: countAiAnalysisQueueCandidates(data),
+      activeAiAnalysisJobsCount: countActiveAiAnalysisJobs(data),
     });
   } catch (error) {
     return failure(toAppError(error));
@@ -246,6 +282,8 @@ function buildStudentList(data: AppData): StudentListItem[] {
 
 function toStudentListItem(data: AppData, student: Student, project: Project): StudentListItem {
   const lastUpdate = findLastProjectUpdate(data, student.id, project.id);
+  const lastAiAnalysisJob =
+    lastUpdate === null ? null : findLatestAiAnalysisJob(data, lastUpdate.id);
 
   return {
     studentId: student.id,
@@ -262,10 +300,84 @@ function toStudentListItem(data: AppData, student: Student, project: Project): S
         ? null
         : updateEventResultLabels[lastUpdate.result],
     lastNewCommitsCount: lastUpdate?.newCommitsCount ?? null,
+    lastAiAnalysisJobStatus: lastAiAnalysisJob?.status ?? null,
+    lastAiAnalysisJobStatusLabel:
+      lastAiAnalysisJob === null
+        ? null
+        : aiAnalysisJobStatusLabels[lastAiAnalysisJob.status],
+    lastAiAnalysisJobUpdatedAt: lastAiAnalysisJob?.updatedAt ?? null,
     lastError: project.lastError,
     status: project.status,
     statusLabel: projectStatusLabels[project.status],
   };
+}
+
+function countAiAnalysisQueueCandidates(data: AppData): number {
+  return data.projectsFile.projects.filter((project) => {
+    if (project.lastUpdateEventId === null) {
+      return false;
+    }
+
+    const event = findUpdateEvent(data, project.lastUpdateEventId);
+
+    if (event === null || getAiAnalysisBlockedReason(data, event) !== null) {
+      return false;
+    }
+
+    if (findActiveAiAnalysisJob(data, event.id) !== null) {
+      return false;
+    }
+
+    return !data.aiReportsFile.aiReports.some(
+      (report) =>
+        report.updateEventId === event.id &&
+        (report.status === "ready" || report.status === "running"),
+    );
+  }).length;
+}
+
+function countActiveAiAnalysisJobs(data: AppData): number {
+  return data.aiAnalysisJobsFile.aiAnalysisJobs.filter(
+    (job) => job.status === "queued" || job.status === "running",
+  ).length;
+}
+
+function findLatestAiAnalysisJob(
+  data: AppData,
+  updateEventId: string,
+): AiAnalysisJob | null {
+  return (
+    data.aiAnalysisJobsFile.aiAnalysisJobs
+      .filter((job) => job.updateEventId === updateEventId)
+      .sort(compareAiAnalysisJobs)[0] ?? null
+  );
+}
+
+function findActiveAiAnalysisJob(
+  data: AppData,
+  updateEventId: string,
+): AiAnalysisJob | null {
+  return (
+    data.aiAnalysisJobsFile.aiAnalysisJobs.find(
+      (job) =>
+        job.updateEventId === updateEventId &&
+        (job.status === "queued" || job.status === "running"),
+    ) ?? null
+  );
+}
+
+function compareAiAnalysisJobs(
+  left: AiAnalysisJob,
+  right: AiAnalysisJob,
+): number {
+  const leftActive = left.status === "queued" || left.status === "running";
+  const rightActive = right.status === "queued" || right.status === "running";
+
+  if (leftActive !== rightActive) {
+    return leftActive ? -1 : 1;
+  }
+
+  return right.requestedAt.localeCompare(left.requestedAt);
 }
 
 function findLastProjectUpdate(data: AppData, studentId: string, projectId: string): UpdateEvent | null {
@@ -276,6 +388,10 @@ function findLastProjectUpdate(data: AppData, studentId: string, projectId: stri
         (right.occurredAt ?? right.startedAt).localeCompare(left.occurredAt ?? left.startedAt),
       )[0] ?? null
   );
+}
+
+function findUpdateEvent(data: AppData, updateEventId: string): UpdateEvent | null {
+  return data.updateEventsFile.updateEvents.find((event) => event.id === updateEventId) ?? null;
 }
 
 function compareStudents(left: StudentListItem, right: StudentListItem): number {
