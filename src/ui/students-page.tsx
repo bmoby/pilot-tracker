@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock3,
   ExternalLink,
+  ListChecks,
   Pencil,
   Plus,
   RefreshCw,
@@ -209,10 +210,12 @@ export function StudentsPage({
           </section>
         ) : (
           <section className="overflow-hidden rounded-lg bg-white shadow-[0_16px_42px_rgba(0,0,0,0.06)]">
-            <div className="grid grid-cols-[1.2fr_1fr_1.2fr_auto] gap-4 px-5 py-4 text-sm font-medium text-neutral-400 max-lg:hidden">
+            <div className="grid grid-cols-[1.1fr_1fr_1fr_0.9fr_1.1fr_auto] gap-4 px-5 py-4 text-sm font-medium text-neutral-400 max-lg:hidden">
               <span>Студент</span>
               <span>GitHub</span>
-              <span>После обновления</span>
+              <span>Статус проекта</span>
+              <span>Проверка</span>
+              <span>Последнее событие</span>
               <span />
             </div>
             {initialStudents.map((student) => (
@@ -313,9 +316,10 @@ function StudentRow({
   onDelete: () => void;
 }) {
   const activity = getStudentActivity(student, opened);
+  const reviewStatus = getStudentReviewStatus(student);
 
   return (
-    <article className="grid gap-4 px-5 py-4 shadow-[0_-1px_0_rgba(0,0,0,0.06)] lg:grid-cols-[1.2fr_1fr_1.2fr_auto] lg:items-center">
+    <article className="grid gap-4 px-5 py-4 shadow-[0_-1px_0_rgba(0,0,0,0.06)] lg:grid-cols-[1.1fr_1fr_1fr_0.9fr_1.1fr_auto] lg:items-center">
       <div className="min-w-0">
         <h2 className="text-lg font-semibold text-neutral-950">
           {student.displayName}
@@ -327,6 +331,17 @@ function StudentRow({
 
       <RepositoryLink url={student.repositoryUrl} />
 
+      <InlineStatus
+        icon={getProjectStatusIcon(student.status)}
+        tone={getProjectStatusTone(student.status)}
+      >
+        {student.statusLabel}
+      </InlineStatus>
+
+      <InlineStatus icon={reviewStatus.icon} tone={reviewStatus.tone}>
+        {reviewStatus.label}
+      </InlineStatus>
+
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-500">
           <span className="whitespace-nowrap">
@@ -337,13 +352,7 @@ function StudentRow({
           <span
             className={[
               "inline-flex min-h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium",
-              activity.tone === "dark"
-                ? "bg-neutral-950 text-white"
-                : activity.tone === "green"
-                  ? "bg-[#edf8ef] text-[#4fa75b]"
-                  : activity.tone === "red"
-                    ? "bg-[#fff1ed] text-[#d45b51]"
-                    : "bg-[#f7f7f5] text-neutral-500",
+              getBadgeClassName(activity.tone),
             ].join(" ")}
           >
             {activity.icon}
@@ -436,9 +445,24 @@ function RepositoryLink({ url }: { url: string | null }) {
 type StudentActivity = {
   label: string;
   seenLabel: string | null;
-  tone: "dark" | "green" | "neutral" | "red";
+  tone: BadgeTone;
   icon: ReactNode;
 };
+
+type StudentReviewStatus = {
+  label: string;
+  tone: BadgeTone;
+  icon: ReactNode;
+};
+
+type BadgeTone =
+  | "dark"
+  | "green"
+  | "neutral"
+  | "red"
+  | "amber"
+  | "blue"
+  | "violet";
 
 function getStudentActivity(
   student: StudentListItem,
@@ -464,11 +488,12 @@ function getStudentActivity(
 
   if (student.lastNewCommitsCount !== null) {
     if (student.lastNewCommitsCount > 0) {
+      const closed = isLatestReviewClosed(student);
       return {
         label: formatCommitsCount(student.lastNewCommitsCount),
-        seenLabel: opened ? "открыто" : "к проверке",
-        tone: opened ? "green" : "dark",
-        icon: opened ? (
+        seenLabel: getReviewAwareSeenLabel(student, opened),
+        tone: closed || opened ? "green" : "dark",
+        icon: closed || opened ? (
           <CheckCircle2 size={14} aria-hidden="true" />
         ) : (
           <ArrowRight size={14} aria-hidden="true" />
@@ -485,11 +510,12 @@ function getStudentActivity(
   }
 
   if (student.lastUpdateResult === "cloned") {
+    const closed = isLatestReviewClosed(student);
     return {
       label: "первое состояние",
-      seenLabel: opened ? "открыто" : "к проверке",
-      tone: opened ? "green" : "dark",
-      icon: opened ? (
+      seenLabel: getReviewAwareSeenLabel(student, opened),
+      tone: closed || opened ? "green" : "dark",
+      icon: closed || opened ? (
         <CheckCircle2 size={14} aria-hidden="true" />
       ) : (
         <ArrowRight size={14} aria-hidden="true" />
@@ -516,6 +542,172 @@ function getStudentActivity(
       <Clock3 size={14} aria-hidden="true" />
     ),
   };
+}
+
+function isLatestReviewClosed(student: StudentListItem): boolean {
+  return student.lastReviewStatus === "reviewed" || student.lastReviewStatus === "skipped";
+}
+
+function getReviewAwareSeenLabel(
+  student: StudentListItem,
+  opened: boolean,
+): string | null {
+  if (isLatestReviewClosed(student)) {
+    return null;
+  }
+
+  return opened ? "открыто" : "к проверке";
+}
+
+function getStudentReviewStatus(student: StudentListItem): StudentReviewStatus {
+  switch (student.lastReviewStatus) {
+    case "not_reviewed":
+      return {
+        label: student.lastReviewStatusLabel ?? "не проверено",
+        tone: "amber",
+        icon: <Clock3 size={14} aria-hidden="true" />,
+      };
+    case "in_review":
+      return {
+        label: student.lastReviewStatusLabel ?? "проверяется",
+        tone: "blue",
+        icon: <RefreshCw size={14} aria-hidden="true" />,
+      };
+    case "reviewed":
+      return {
+        label: student.lastReviewStatusLabel ?? "проверено",
+        tone: "green",
+        icon: <CheckCircle2 size={14} aria-hidden="true" />,
+      };
+    case "needs_work":
+      return {
+        label: student.lastReviewStatusLabel ?? "требует доработки",
+        tone: "red",
+        icon: <AlertCircle size={14} aria-hidden="true" />,
+      };
+    case "needs_recheck":
+      return {
+        label: student.lastReviewStatusLabel ?? "требует повторной проверки",
+        tone: "amber",
+        icon: <ListChecks size={14} aria-hidden="true" />,
+      };
+    case "skipped":
+      return {
+        label: student.lastReviewStatusLabel ?? "пропущено",
+        tone: "neutral",
+        icon: <CheckCircle2 size={14} aria-hidden="true" />,
+      };
+    default:
+      return {
+        label: "нет обновления",
+        tone: "neutral",
+        icon: <Clock3 size={14} aria-hidden="true" />,
+      };
+  }
+}
+
+function InlineStatus({
+  icon,
+  tone,
+  children,
+}: {
+  icon: ReactNode;
+  tone: BadgeTone;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      className={[
+        "inline-flex min-h-7 min-w-0 items-center gap-1.5 text-sm font-medium",
+        getStatusTextClassName(tone),
+      ].join(" ")}
+    >
+      <span className="shrink-0">{icon}</span>
+      <span className="min-w-0 break-words">{children}</span>
+    </span>
+  );
+}
+
+function getProjectStatusTone(status: StudentListItem["status"]): BadgeTone {
+  if (status === "first_loaded") {
+    return "violet";
+  }
+
+  if (status === "has_changes") {
+    return "green";
+  }
+
+  if (status === "updating") {
+    return "blue";
+  }
+
+  if (
+    status === "update_error" ||
+    status === "local_copy_missing" ||
+    status === "local_copy_unavailable" ||
+    status === "repository_unavailable"
+  ) {
+    return "red";
+  }
+
+  return "neutral";
+}
+
+function getProjectStatusIcon(status: StudentListItem["status"]): ReactNode {
+  if (status === "has_changes" || status === "no_changes") {
+    return <CheckCircle2 size={14} aria-hidden="true" />;
+  }
+
+  if (status === "first_loaded") {
+    return <ListChecks size={14} aria-hidden="true" />;
+  }
+
+  if (status === "updating") {
+    return <RefreshCw size={14} aria-hidden="true" />;
+  }
+
+  if (
+    status === "update_error" ||
+    status === "local_copy_missing" ||
+    status === "local_copy_unavailable" ||
+    status === "repository_unavailable"
+  ) {
+    return <AlertCircle size={14} aria-hidden="true" />;
+  }
+
+  if (status === "not_connected") {
+    return <ExternalLink size={14} aria-hidden="true" />;
+  }
+
+  return <Clock3 size={14} aria-hidden="true" />;
+}
+
+function getBadgeClassName(tone: BadgeTone): string {
+  const classes: Record<BadgeTone, string> = {
+    dark: "bg-neutral-950 text-white",
+    green: "bg-[#edf8ef] text-[#4fa75b]",
+    neutral: "bg-[#f7f7f5] text-neutral-500",
+    red: "bg-[#fff1ed] text-[#d45b51]",
+    amber: "bg-[#fff7e8] text-[#b87522]",
+    blue: "bg-[#eef7ff] text-[#3e79ac]",
+    violet: "bg-[#f4efff] text-[#8062d6]",
+  };
+
+  return classes[tone];
+}
+
+function getStatusTextClassName(tone: BadgeTone): string {
+  const classes: Record<BadgeTone, string> = {
+    dark: "text-neutral-950",
+    green: "text-[#4fa75b]",
+    neutral: "text-neutral-500",
+    red: "text-[#d45b51]",
+    amber: "text-[#b87522]",
+    blue: "text-[#3e79ac]",
+    violet: "text-[#8062d6]",
+  };
+
+  return classes[tone];
 }
 
 function getStudentUpdateMarker(student: StudentListItem): string | null {

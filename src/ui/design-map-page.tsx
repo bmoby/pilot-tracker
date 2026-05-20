@@ -10,6 +10,7 @@ import {
   FileCode2,
   FileText,
   GitBranch,
+  ListChecks,
   MessageSquare,
   Pencil,
   RefreshCw,
@@ -25,7 +26,7 @@ type Tone = "blue" | "green" | "red" | "amber" | "violet" | "neutral";
 const attentionCards = [
   {
     title: "Новые изменения",
-    subtitle: "Открыть студента и проверить последние коммиты.",
+    subtitle: "Открыть студента и проверить последние коммиты с учетом статуса проверки.",
     label: "Нужно внимание",
     icon: <GitBranch size={18} aria-hidden="true" />,
     tone: "green" as const,
@@ -38,6 +39,14 @@ const attentionCards = [
     icon: <Database size={18} aria-hidden="true" />,
     tone: "violet" as const,
     className: "bg-[linear-gradient(135deg,#fbf7ff_0%,#eadfff_100%)]",
+  },
+  {
+    title: "Последняя проверка",
+    subtitle: "Показать статус проверки только для последнего обновления студента.",
+    label: "Не проверено",
+    icon: <ListChecks size={18} aria-hidden="true" />,
+    tone: "amber" as const,
+    className: "bg-[linear-gradient(135deg,#fffaf0_0%,#ffe8ba_100%)]",
   },
   {
     title: "Ошибка обновления",
@@ -64,6 +73,8 @@ const studentRows = [
     repository: "maryam/pilot-dashboard",
     status: "Есть новые изменения",
     statusTone: "green" as const,
+    reviewStatus: "не проверено",
+    reviewTone: "amber" as const,
     signal: "4 новых коммита",
     signalTone: "green" as const,
     lastEvent: "сегодня, 10:42",
@@ -74,6 +85,8 @@ const studentRows = [
     repository: "rashid/course-app",
     status: "Впервые загружен",
     statusTone: "violet" as const,
+    reviewStatus: "не проверено",
+    reviewTone: "amber" as const,
     signal: "нужна первая проверка",
     signalTone: "violet" as const,
     lastEvent: "вчера, 18:10",
@@ -84,6 +97,8 @@ const studentRows = [
     repository: "leyla/private-crm",
     status: "Ошибка обновления",
     statusTone: "red" as const,
+    reviewStatus: "требует повторной проверки",
+    reviewTone: "amber" as const,
     signal: "нет доступа",
     signalTone: "red" as const,
     lastEvent: "вчера, 17:55",
@@ -94,6 +109,8 @@ const studentRows = [
     repository: "GitHub-ссылка не указана",
     status: "Проект не подключен",
     statusTone: "neutral" as const,
+    reviewStatus: "нет обновления",
+    reviewTone: "neutral" as const,
     signal: "нужно редактирование",
     signalTone: "amber" as const,
     lastEvent: "обновлений еще не было",
@@ -176,7 +193,7 @@ const colorTokens = [
 
 const componentRows = [
   ["Бейдж уведомления", "иконка, короткий текст, мягкий фон без декоративных точек"],
-  ["Строка студента", "имя, GitHub, статус проекта, последний сигнал, действия"],
+  ["Строка студента", "имя, GitHub, статус проекта, проверка последнего обновления, последний сигнал, действия"],
   ["Строка обновления", "дата, результат, статус проверки, коммиты, ИИ и комментарии"],
   ["Рабочая область проверки", "ИИ-рапорт, комментарии и действия выбранного обновления"],
   ["Диагностика", "локальные пути и инструменты с понятным статусом"],
@@ -219,7 +236,7 @@ export function DesignMapPage() {
             subtitle="Вместо прогресса студента показываем то, что реально помогает выбрать следующую проверку."
             tool={<SoftChip icon={<UserRound size={15} aria-hidden="true" />} tone="green">Главный экран</SoftChip>}
           />
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             {attentionCards.map((card) => (
               <article
                 key={card.title}
@@ -247,17 +264,18 @@ export function DesignMapPage() {
             }
           />
           <div className="overflow-hidden rounded-lg bg-white shadow-[0_12px_34px_rgba(0,0,0,0.06)]">
-            <div className="grid grid-cols-[1.1fr_1fr_1fr_1fr_auto] gap-4 px-5 py-4 text-sm font-medium text-neutral-400 max-lg:hidden">
+            <div className="grid grid-cols-[1.1fr_1fr_0.9fr_0.9fr_1fr_auto] gap-4 px-5 py-4 text-sm font-medium text-neutral-400 max-lg:hidden">
               <span>Студент</span>
               <span>GitHub</span>
               <span>Статус проекта</span>
+              <span>Проверка</span>
               <span>Последнее событие</span>
               <span />
             </div>
             {studentRows.map((row) => (
               <div
                 key={row.student}
-                className="grid gap-4 px-5 py-5 shadow-[0_-1px_0_rgba(0,0,0,0.06)] lg:grid-cols-[1.1fr_1fr_1fr_1fr_auto] lg:items-center"
+                className="grid gap-4 px-5 py-5 shadow-[0_-1px_0_rgba(0,0,0,0.06)] lg:grid-cols-[1.1fr_1fr_0.9fr_0.9fr_1fr_auto] lg:items-center"
               >
                 <div className="min-w-0">
                   <p className="font-medium">{row.student}</p>
@@ -267,6 +285,7 @@ export function DesignMapPage() {
                   {row.repository}
                 </p>
                 <StatusLabel tone={row.statusTone}>{row.status}</StatusLabel>
+                <StatusLabel tone={row.reviewTone}>{row.reviewStatus}</StatusLabel>
                 <div className="grid gap-2">
                   <NotificationBadge tone={row.signalTone} icon={getToneIcon(row.signalTone)}>
                     {row.signal}
