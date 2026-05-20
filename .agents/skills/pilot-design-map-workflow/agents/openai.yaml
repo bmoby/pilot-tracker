@@ -1,0 +1,7 @@
+interface:
+  display_name: "Дизайн-карта Pilot Tracker"
+  short_description: "Сначала дизайн-карта, потом рабочий интерфейс"
+  default_prompt: "Используй $pilot-design-map-workflow, чтобы сначала сверить изменение интерфейса с дизайн-картой Pilot Tracker."
+
+policy:
+  allow_implicit_invocation: true
