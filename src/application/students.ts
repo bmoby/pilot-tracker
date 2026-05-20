@@ -3,12 +3,14 @@ import type {
   AppData,
   Project,
   ProjectStatus,
+  ReviewStatusValue,
   Student,
   UpdateEvent,
 } from "@/domain/schemas";
 import {
   aiAnalysisJobStatusLabels,
   projectStatusLabels,
+  reviewStatusLabels,
   updateEventResultLabels,
 } from "@/domain/schemas";
 import { getAiAnalysisBlockedReason } from "@/application/ai-analysis";
@@ -38,6 +40,8 @@ export type StudentListItem = {
   lastUpdateResult: string | null;
   lastUpdateResultLabel: string | null;
   lastNewCommitsCount: number | null;
+  lastReviewStatus: ReviewStatusValue | null;
+  lastReviewStatusLabel: string | null;
   lastAiAnalysisJobStatus: AiAnalysisJob["status"] | null;
   lastAiAnalysisJobStatusLabel: string | null;
   lastAiAnalysisJobUpdatedAt: string | null;
@@ -284,6 +288,8 @@ function toStudentListItem(data: AppData, student: Student, project: Project): S
   const lastUpdate = findLastProjectUpdate(data, student.id, project.id);
   const lastAiAnalysisJob =
     lastUpdate === null ? null : findLatestAiAnalysisJob(data, lastUpdate.id);
+  const lastReviewStatus =
+    lastUpdate === null ? null : findReviewStatusValue(data, lastUpdate.id);
 
   return {
     studentId: student.id,
@@ -300,6 +306,9 @@ function toStudentListItem(data: AppData, student: Student, project: Project): S
         ? null
         : updateEventResultLabels[lastUpdate.result],
     lastNewCommitsCount: lastUpdate?.newCommitsCount ?? null,
+    lastReviewStatus,
+    lastReviewStatusLabel:
+      lastReviewStatus === null ? null : reviewStatusLabels[lastReviewStatus],
     lastAiAnalysisJobStatus: lastAiAnalysisJob?.status ?? null,
     lastAiAnalysisJobStatusLabel:
       lastAiAnalysisJob === null
@@ -350,6 +359,17 @@ function findLatestAiAnalysisJob(
     data.aiAnalysisJobsFile.aiAnalysisJobs
       .filter((job) => job.updateEventId === updateEventId)
       .sort(compareAiAnalysisJobs)[0] ?? null
+  );
+}
+
+function findReviewStatusValue(
+  data: AppData,
+  updateEventId: string,
+): ReviewStatusValue {
+  return (
+    data.reviewStatusesFile.reviewStatuses.find(
+      (status) => status.updateEventId === updateEventId,
+    )?.status ?? "not_reviewed"
   );
 }
 
