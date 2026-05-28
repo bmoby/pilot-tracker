@@ -11,3 +11,9 @@ url = "https://developers.openai.com/mcp"
 enabled = true
 required = false
 tool_timeout_sec = 60
+
+[mcp_servers.supabase]
+url = "https://mcp.supabase.com/mcp?project_ref=djyioruyddkeildubtbr&read_only=true"
+enabled = true
+required = false
+tool_timeout_sec = 60
