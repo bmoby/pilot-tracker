@@ -8,4 +8,6 @@ coverage/
 !.env.example
 data/
 *.tsbuildinfo
+supabase/.temp/
+.workspace-project.json
 .DS_Store
