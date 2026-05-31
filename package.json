@@ -9,6 +9,7 @@
     "start": "next start",
     "test": "vitest run",
     "lint": "eslint . --max-warnings=0",
+    "migrate:json-to-supabase": "node --env-file=.env --disable-warning=ExperimentalWarning --experimental-transform-types scripts/migrate-json-to-supabase.ts",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"

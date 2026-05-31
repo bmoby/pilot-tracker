@@ -30,8 +30,13 @@ import {
   safeWriteJsonFile,
 } from "./file-system";
 import { createStorageError } from "./storage-error";
+import {
+  SupabaseDataStorage,
+  type SupabaseDataFileKey,
+} from "./supabase-data-storage";
 
 type AppFileKey = keyof AppData;
+type AppStorageBackend = "local" | "supabase";
 
 type AppFileDefinition<T> = {
   fileName: string;
@@ -92,16 +97,20 @@ const APP_FILE_DEFINITIONS = {
 export type AppStorageOptions = {
   projectRoot?: string;
   dataRoot?: "data";
+  backend?: AppStorageBackend;
 };
 
 export class AppStorage {
   private readonly projectRoot: string;
   private readonly dataRootName: "data";
+  private readonly backend: AppStorageBackend;
+  private supabaseStorage: SupabaseDataStorage | null = null;
   private writeQueue: Promise<void> = Promise.resolve();
 
   constructor(options: AppStorageOptions = {}) {
     this.projectRoot = options.projectRoot ?? process.cwd();
     this.dataRootName = options.dataRoot ?? "data";
+    this.backend = options.backend ?? "local";
   }
 
   get dataRootPath() {
@@ -129,6 +138,10 @@ export class AppStorage {
   }
 
   async load(): Promise<AppData> {
+    if (this.backend === "supabase") {
+      return this.loadFromSupabase();
+    }
+
     await this.initialize();
 
     const data: AppData = {
@@ -175,6 +188,10 @@ export class AppStorage {
   }
 
   async saveFiles(data: AppData, keys: AppFileKey[]): Promise<void> {
+    if (this.backend === "supabase") {
+      return this.saveFilesToSupabase(data, keys);
+    }
+
     const operation = this.writeQueue.then(async () => {
       for (const key of keys) {
         const definition = APP_FILE_DEFINITIONS[key];
@@ -194,6 +211,10 @@ export class AppStorage {
     keys: AppFileKey[],
     mutator: (data: AppData) => Result | Promise<Result>,
   ): Promise<Result> {
+    if (this.backend === "supabase") {
+      return this.updateFilesInSupabase(keys, mutator);
+    }
+
     const operation = this.writeQueue.then(async () => {
       const data = await this.load();
       const result = await mutator(data);
@@ -218,7 +239,94 @@ export class AppStorage {
     return operation;
   }
 
-  private async initialize(): Promise<void> {
+  private async loadFromSupabase(): Promise<AppData> {
+    await this.initialize(["settingsFile"]);
+
+    const settingsFile = await readJsonFile(
+      this.getFilePath("settings.json"),
+      settingsFileSchema,
+    );
+    const data = await this.getSupabaseStorage().load(settingsFile);
+
+    validateAppDataConsistency(data);
+    return data;
+  }
+
+  private async saveFilesToSupabase(
+    data: AppData,
+    keys: AppFileKey[],
+  ): Promise<void> {
+    const operation = this.writeQueue.then(async () => {
+      validateAppDataConsistency(data);
+      await this.saveSettingsFileIfNeeded(data, keys);
+
+      const supabaseKeys = keys.filter(
+        (key): key is SupabaseDataFileKey => key !== "settingsFile",
+      );
+
+      if (supabaseKeys.length > 0) {
+        await this.getSupabaseStorage().saveFiles(data, supabaseKeys);
+      }
+    });
+
+    this.writeQueue = operation.catch(() => undefined);
+    return operation;
+  }
+
+  private async updateFilesInSupabase<Result>(
+    keys: AppFileKey[],
+    mutator: (data: AppData) => Result | Promise<Result>,
+  ): Promise<Result> {
+    const operation = this.writeQueue.then(async () => {
+      const data = await this.loadFromSupabase();
+      const result = await mutator(data);
+      validateAppDataConsistency(data);
+
+      await this.saveSettingsFileIfNeeded(data, keys);
+
+      const supabaseKeys = keys.filter(
+        (key): key is SupabaseDataFileKey => key !== "settingsFile",
+      );
+
+      if (supabaseKeys.length > 0) {
+        await this.getSupabaseStorage().saveFiles(data, supabaseKeys);
+      }
+
+      return result;
+    });
+
+    this.writeQueue = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return operation;
+  }
+
+  private async saveSettingsFileIfNeeded(
+    data: AppData,
+    keys: AppFileKey[],
+  ): Promise<void> {
+    if (!keys.includes("settingsFile")) {
+      return;
+    }
+
+    await this.initialize(["settingsFile"]);
+    await safeWriteJsonFile(
+      this.getFilePath("settings.json"),
+      data.settingsFile,
+      settingsFileSchema,
+    );
+  }
+
+  private getSupabaseStorage(): SupabaseDataStorage {
+    this.supabaseStorage ??= new SupabaseDataStorage({
+      dataRootPath: this.dataRootPath,
+    });
+
+    return this.supabaseStorage;
+  }
+
+  private async initialize(keys: AppFileKey[] = appFileKeys): Promise<void> {
     await ensureDirectory(this.dataRootPath);
     await ensureDirectory(this.appDataPath);
     await ensureDirectory(this.repositoriesPath);
@@ -226,7 +334,7 @@ export class AppStorage {
     await ensureDirectory(this.logsPath);
     await ensureDirectory(this.backupsPath);
 
-    for (const key of appFileKeys) {
+    for (const key of keys) {
       const definition = APP_FILE_DEFINITIONS[key];
       const filePath = this.getFilePath(definition.fileName);
 
@@ -512,7 +620,7 @@ function validateAppDataConsistency(data: AppData): void {
 let defaultStorage: AppStorage | null = null;
 
 export function getDefaultStorage(): AppStorage {
-  defaultStorage ??= new AppStorage();
+  defaultStorage ??= new AppStorage({ backend: "supabase" });
   return defaultStorage;
 }
 
