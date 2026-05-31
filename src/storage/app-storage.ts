@@ -244,16 +244,23 @@ export class AppStorage {
   }
 
   private async loadFromSupabase(): Promise<AppData> {
-    await this.initialize(["settingsFile"]);
-
-    const settingsFile = await readJsonFile(
-      this.getFilePath("settings.json"),
-      settingsFileSchema,
-    );
+    const settingsFile = await this.loadSettingsFileForSupabase();
     const data = await this.getSupabaseStorage().load(settingsFile);
 
     validateAppDataConsistency(data);
     return data;
+  }
+
+  private async loadSettingsFileForSupabase(): Promise<
+    AppData["settingsFile"]
+  > {
+    const settingsFilePath = this.getFilePath("settings.json");
+
+    if (await pathExists(settingsFilePath)) {
+      return readJsonFile(settingsFilePath, settingsFileSchema);
+    }
+
+    return createInitialSettingsFile();
   }
 
   private async saveFilesToSupabase(
