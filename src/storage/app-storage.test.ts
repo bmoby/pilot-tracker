@@ -1,8 +1,10 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterEach, describe, expect, it } from "vitest";
 import { AppStorage } from "./app-storage";
+import { pathExists } from "./file-system";
 
 let tempRoot: string | null = null;
 
@@ -47,4 +49,34 @@ describe("локальное хранилище", () => {
       aiAnalysisJobs: [],
     });
   });
+
+  it("не создает локальную папку data при чтении через Supabase", async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), "pilot-tracker-"));
+    const storage = new AppStorage({
+      backend: "supabase",
+      projectRoot: tempRoot,
+      supabaseClient: createEmptySupabaseClient(),
+    });
+
+    const data = await storage.load();
+
+    expect(data.settingsFile.settings.dataRoot).toBe("data");
+    expect(data.studentsFile.students).toEqual([]);
+    expect(await pathExists(join(tempRoot, "data"))).toBe(false);
+  });
 });
+
+function createEmptySupabaseClient(): SupabaseClient {
+  return {
+    from() {
+      return {
+        select() {
+          return Promise.resolve({
+            data: [],
+            error: null,
+          });
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+}
