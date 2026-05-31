@@ -10,11 +10,17 @@ import {
   FileCode2,
   FileText,
   GitBranch,
+  KeyRound,
   ListChecks,
+  LockKeyhole,
+  LogIn,
+  LogOut,
+  Mail,
   MessageSquare,
   Pencil,
   RefreshCw,
   Settings,
+  ShieldCheck,
   Sparkles,
   Trash2,
   UserRound,
@@ -26,7 +32,8 @@ type Tone = "blue" | "green" | "red" | "amber" | "violet" | "neutral";
 const attentionCards = [
   {
     title: "Новые изменения",
-    subtitle: "Открыть студента и проверить последние коммиты с учетом статуса проверки.",
+    subtitle:
+      "Открыть студента и проверить последние коммиты с учетом статуса проверки.",
     label: "Нужно внимание",
     icon: <GitBranch size={18} aria-hidden="true" />,
     tone: "green" as const,
@@ -34,7 +41,8 @@ const attentionCards = [
   },
   {
     title: "Первая загрузка",
-    subtitle: "Посмотреть первое состояние проекта и при необходимости запустить ИИ.",
+    subtitle:
+      "Посмотреть первое состояние проекта и при необходимости запустить ИИ.",
     label: "Первая проверка",
     icon: <Database size={18} aria-hidden="true" />,
     tone: "violet" as const,
@@ -42,7 +50,8 @@ const attentionCards = [
   },
   {
     title: "Последняя проверка",
-    subtitle: "Показать статус проверки только для последнего обновления студента.",
+    subtitle:
+      "Показать статус проверки только для последнего обновления студента.",
     label: "Не проверено",
     icon: <ListChecks size={18} aria-hidden="true" />,
     tone: "amber" as const,
@@ -50,7 +59,8 @@ const attentionCards = [
   },
   {
     title: "Ошибка обновления",
-    subtitle: "Показать причину рядом со студентом, не скрывая остальные результаты.",
+    subtitle:
+      "Показать причину рядом со студентом, не скрывая остальные результаты.",
     label: "Исправить",
     icon: <AlertCircle size={18} aria-hidden="true" />,
     tone: "red" as const,
@@ -58,7 +68,8 @@ const attentionCards = [
   },
   {
     title: "Нет GitHub-ссылки",
-    subtitle: "Оставить студента в списке и дать короткое действие редактирования.",
+    subtitle:
+      "Оставить студента в списке и дать короткое действие редактирования.",
     label: "Дополнить",
     icon: <ExternalLink size={18} aria-hidden="true" />,
     tone: "blue" as const,
@@ -155,6 +166,12 @@ const diagnosticRows = [
     tone: "green" as const,
   },
   {
+    name: "Supabase Auth",
+    value: "cookie-сессия",
+    status: "администратор",
+    tone: "green" as const,
+  },
+  {
     name: "Git",
     value: "git --version",
     status: "готов",
@@ -191,11 +208,54 @@ const colorTokens = [
   { name: "ИИ", value: "#8d6ee8", className: "bg-[#8d6ee8]" },
 ];
 
+const authStateRows = [
+  {
+    title: "Нет сессии",
+    description: "Рабочие данные скрыты, доступен только вход администратора.",
+    tone: "amber" as const,
+    icon: <LockKeyhole size={16} aria-hidden="true" />,
+  },
+  {
+    title: "Администратор вошел",
+    description:
+      "Открывается список студентов, в навигации видно действие выхода.",
+    tone: "green" as const,
+    icon: <ShieldCheck size={16} aria-hidden="true" />,
+  },
+  {
+    title: "Доступ отклонен",
+    description:
+      "Показывается короткая ошибка без раскрытия email, токенов и ключей.",
+    tone: "red" as const,
+    icon: <AlertCircle size={16} aria-hidden="true" />,
+  },
+];
+
 const componentRows = [
-  ["Бейдж уведомления", "иконка, короткий текст, мягкий фон без декоративных точек"],
-  ["Строка студента", "имя, GitHub, статус проекта, проверка последнего обновления, последний сигнал, действия"],
-  ["Строка обновления", "дата, результат, статус проверки, коммиты, ИИ и комментарии"],
-  ["Рабочая область проверки", "ИИ-рапорт, комментарии и действия выбранного обновления"],
+  [
+    "Экран входа",
+    "email, пароль, действие входа, ошибка доступа без показа рабочих данных",
+  ],
+  [
+    "Состояние сессии",
+    "серверная проверка администратора, закрытие данных без сессии, выход",
+  ],
+  [
+    "Бейдж уведомления",
+    "иконка, короткий текст, мягкий фон без декоративных точек",
+  ],
+  [
+    "Строка студента",
+    "имя, GitHub, статус проекта, проверка последнего обновления, последний сигнал, действия",
+  ],
+  [
+    "Строка обновления",
+    "дата, результат, статус проверки, коммиты, ИИ и комментарии",
+  ],
+  [
+    "Рабочая область проверки",
+    "ИИ-рапорт, комментарии и действия выбранного обновления",
+  ],
   ["Диагностика", "локальные пути и инструменты с понятным статусом"],
 ];
 
@@ -214,13 +274,16 @@ export function DesignMapPage() {
             <p className="mt-5 max-w-2xl text-base leading-7 text-neutral-500">
               Карта фиксирует только реальные поверхности первой версии:
               студенты, обновления, проверка, ИИ-рапорты, комментарии,
-              настройки и системные состояния.
+              настройки, вход администратора и системные состояния.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="text-neutral-400">Фокус:</span>
-            <SoftChip icon={<Sparkles size={15} aria-hidden="true" />} tone="green">
+            <SoftChip
+              icon={<Sparkles size={15} aria-hidden="true" />}
+              tone="green"
+            >
               Без лишних метрик
             </SoftChip>
             <button className="inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-4 font-medium text-neutral-800 shadow-[0_4px_18px_rgba(0,0,0,0.06)]">
@@ -230,11 +293,123 @@ export function DesignMapPage() {
           </div>
         </header>
 
+        <section className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-lg bg-white p-5 shadow-[0_12px_34px_rgba(0,0,0,0.06)]">
+            <SectionHeader
+              compact
+              title="Вход администратора"
+              subtitle="До сессии показываем только вход, без списка студентов и истории проверки."
+              tool={
+                <SoftChip
+                  icon={<LockKeyhole size={15} aria-hidden="true" />}
+                  tone="neutral"
+                >
+                  Закрытый доступ
+                </SoftChip>
+              }
+            />
+            <div className="mt-5 grid gap-4">
+              <div>
+                <p className="text-2xl font-semibold">Pilot Tracker</p>
+                <p className="mt-2 text-sm leading-6 text-neutral-500">
+                  Доступ только для администратора-преподавателя.
+                </p>
+              </div>
+              <label className="grid gap-2 text-sm font-medium text-neutral-700">
+                Email администратора
+                <span className="flex min-h-11 items-center gap-3 rounded-lg bg-[#f7f7f5] px-3 text-neutral-500 ring-1 ring-[#ebeae7]">
+                  <Mail size={16} aria-hidden="true" />
+                  admin@example.com
+                </span>
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-neutral-700">
+                Пароль
+                <span className="flex min-h-11 items-center gap-3 rounded-lg bg-[#f7f7f5] px-3 text-neutral-500 ring-1 ring-[#ebeae7]">
+                  <KeyRound size={16} aria-hidden="true" />
+                  ********
+                </span>
+              </label>
+              <button
+                className="inline-flex min-h-11 w-fit items-center gap-2 rounded-full bg-neutral-950 px-4 text-sm font-medium text-white"
+                type="button"
+              >
+                Войти
+                <LogIn size={15} aria-hidden="true" />
+              </button>
+              <NotificationStrip
+                tone="red"
+                icon={<AlertCircle size={18} aria-hidden="true" />}
+              >
+                Вход не выполнен. Проверьте email и пароль администратора.
+              </NotificationStrip>
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-white p-5 shadow-[0_12px_34px_rgba(0,0,0,0.06)]">
+            <SectionHeader
+              compact
+              title="Состояния доступа"
+              subtitle="Статус сессии влияет на маршруты, навигацию и видимость рабочих данных."
+              tool={
+                <SoftChip
+                  icon={<ShieldCheck size={15} aria-hidden="true" />}
+                  tone="green"
+                >
+                  Supabase Auth
+                </SoftChip>
+              }
+            />
+            <div className="mt-5 grid gap-4">
+              {authStateRows.map((row) => (
+                <div
+                  key={row.title}
+                  className="grid gap-3 rounded-lg bg-[#fbfbfa] p-4 sm:grid-cols-[auto_1fr_auto] sm:items-center"
+                >
+                  <span
+                    className={`flex size-10 items-center justify-center rounded-full ${getToneClasses(row.tone)}`}
+                  >
+                    {row.icon}
+                  </span>
+                  <div>
+                    <p className="font-medium">{row.title}</p>
+                    <p className="mt-1 text-sm leading-6 text-neutral-500">
+                      {row.description}
+                    </p>
+                  </div>
+                  {row.title === "Администратор вошел" ? (
+                    <button
+                      className="inline-flex min-h-10 items-center gap-2 rounded-full bg-white px-4 text-sm font-medium text-neutral-800 shadow-[0_2px_10px_rgba(0,0,0,0.06)]"
+                      type="button"
+                    >
+                      Выйти
+                      <LogOut size={15} aria-hidden="true" />
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+              <NotificationStrip
+                tone="amber"
+                icon={<LockKeyhole size={18} aria-hidden="true" />}
+              >
+                Без сессии список студентов, комментарии, статусы и ИИ-рапорты
+                не отображаются.
+              </NotificationStrip>
+            </div>
+          </div>
+        </section>
+
         <section className="grid gap-5">
           <SectionHeader
             title="Сигналы списка студентов"
             subtitle="Вместо прогресса студента показываем то, что реально помогает выбрать следующую проверку."
-            tool={<SoftChip icon={<UserRound size={15} aria-hidden="true" />} tone="green">Главный экран</SoftChip>}
+            tool={
+              <SoftChip
+                icon={<UserRound size={15} aria-hidden="true" />}
+                tone="green"
+              >
+                Главный экран
+              </SoftChip>
+            }
           />
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             {attentionCards.map((card) => (
@@ -245,8 +420,12 @@ export function DesignMapPage() {
                 <NotificationBadge tone={card.tone} icon={card.icon}>
                   {card.label}
                 </NotificationBadge>
-                <h2 className="mt-5 text-lg font-semibold leading-6">{card.title}</h2>
-                <p className="mt-2 text-sm leading-6 text-neutral-600">{card.subtitle}</p>
+                <h2 className="mt-5 text-lg font-semibold leading-6">
+                  {card.title}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-neutral-600">
+                  {card.subtitle}
+                </p>
               </article>
             ))}
           </div>
@@ -285,9 +464,14 @@ export function DesignMapPage() {
                   {row.repository}
                 </p>
                 <StatusLabel tone={row.statusTone}>{row.status}</StatusLabel>
-                <StatusLabel tone={row.reviewTone}>{row.reviewStatus}</StatusLabel>
+                <StatusLabel tone={row.reviewTone}>
+                  {row.reviewStatus}
+                </StatusLabel>
                 <div className="grid gap-2">
-                  <NotificationBadge tone={row.signalTone} icon={getToneIcon(row.signalTone)}>
+                  <NotificationBadge
+                    tone={row.signalTone}
+                    icon={getToneIcon(row.signalTone)}
+                  >
                     {row.signal}
                   </NotificationBadge>
                   <p className="text-sm text-neutral-400">{row.lastEvent}</p>
@@ -311,7 +495,14 @@ export function DesignMapPage() {
               compact
               title="Страница студента"
               subtitle="Верхний контекст помогает сориентироваться, но основная работа остается в ленте обновлений."
-              tool={<SoftChip icon={<FileText size={15} aria-hidden="true" />} tone="neutral">Лента</SoftChip>}
+              tool={
+                <SoftChip
+                  icon={<FileText size={15} aria-hidden="true" />}
+                  tone="neutral"
+                >
+                  Лента
+                </SoftChip>
+              }
             />
             <div className="mt-5 grid gap-4">
               <div className="grid gap-3 py-4 shadow-[0_-1px_0_rgba(0,0,0,0.06)] first:pt-0 first:shadow-none">
@@ -322,7 +513,10 @@ export function DesignMapPage() {
                       GitHub, локальная копия, ветка main, последний коммит.
                     </p>
                   </div>
-                  <NotificationBadge tone="green" icon={<CheckCircle2 size={15} aria-hidden="true" />}>
+                  <NotificationBadge
+                    tone="green"
+                    icon={<CheckCircle2 size={15} aria-hidden="true" />}
+                  >
                     проект доступен
                   </NotificationBadge>
                 </div>
@@ -359,18 +553,29 @@ export function DesignMapPage() {
                   <div>
                     <div className="flex flex-wrap items-center gap-3">
                       <p className="font-medium">{row.result}</p>
-                      <StatusLabel tone={row.statusTone}>{row.status}</StatusLabel>
+                      <StatusLabel tone={row.statusTone}>
+                        {row.status}
+                      </StatusLabel>
                     </div>
                     <p className="mt-2 text-sm text-neutral-400">{row.date}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <NotificationBadge tone="blue" icon={<GitBranch size={15} aria-hidden="true" />}>
+                    <NotificationBadge
+                      tone="blue"
+                      icon={<GitBranch size={15} aria-hidden="true" />}
+                    >
                       {row.commits}
                     </NotificationBadge>
-                    <NotificationBadge tone="violet" icon={<Bot size={15} aria-hidden="true" />}>
+                    <NotificationBadge
+                      tone="violet"
+                      icon={<Bot size={15} aria-hidden="true" />}
+                    >
                       {row.reports}
                     </NotificationBadge>
-                    <NotificationBadge tone="neutral" icon={<MessageSquare size={15} aria-hidden="true" />}>
+                    <NotificationBadge
+                      tone="neutral"
+                      icon={<MessageSquare size={15} aria-hidden="true" />}
+                    >
                       {row.comments}
                     </NotificationBadge>
                   </div>
@@ -388,18 +593,28 @@ export function DesignMapPage() {
           <SectionHeader
             title="Рабочая область проверки"
             subtitle="Не боковая карточка внутри карточки, а широкое место для выбранного обновления."
-            tool={<SoftChip icon={<Bot size={15} aria-hidden="true" />} tone="green">ИИ вручную</SoftChip>}
+            tool={
+              <SoftChip
+                icon={<Bot size={15} aria-hidden="true" />}
+                tone="green"
+              >
+                ИИ вручную
+              </SoftChip>
+            }
           />
           <div className="rounded-lg bg-white p-5 shadow-[0_12px_34px_rgba(0,0,0,0.06)]">
             <div className="flex flex-col gap-4 border-b border-[#ebeae7] pb-5 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-2xl font-semibold">Новые изменения найдены</h2>
+                  <h2 className="text-2xl font-semibold">
+                    Новые изменения найдены
+                  </h2>
                   <StatusLabel tone="amber">не проверено</StatusLabel>
                 </div>
                 <p className="mt-2 text-sm leading-6 text-neutral-500">
-                  Ветка main, старый коммит a18f24c, новый коммит 91c0b77,
-                  4 новых коммита. Данные относятся только к выбранному обновлению.
+                  Ветка main, старый коммит a18f24c, новый коммит 91c0b77, 4
+                  новых коммита. Данные относятся только к выбранному
+                  обновлению.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -417,25 +632,42 @@ export function DesignMapPage() {
             <div className="grid gap-8 pt-6 lg:grid-cols-[1.1fr_0.9fr]">
               <section>
                 <div className="flex items-center gap-3">
-                  <Bot size={18} aria-hidden="true" className="text-[#8d6ee8]" />
+                  <Bot
+                    size={18}
+                    aria-hidden="true"
+                    className="text-[#8d6ee8]"
+                  />
                   <h3 className="text-lg font-semibold">Основной ИИ-рапорт</h3>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-neutral-600">
-                  Рапорт объясняет человеческим языком, что студент добавил,
-                  что стоит быстро проверить руками и какие вопросы можно задать.
-                  Техническая справка остается вторичной и раскрывается отдельно.
+                  Рапорт объясняет человеческим языком, что студент добавил, что
+                  стоит быстро проверить руками и какие вопросы можно задать.
+                  Техническая справка остается вторичной и раскрывается
+                  отдельно.
                 </p>
                 <div className="mt-5 grid gap-3">
-                  <CheckLine>проверить авторизацию и пустые состояния</CheckLine>
-                  <CheckLine>сравнить новый экран с предыдущим коммитом</CheckLine>
-                  <CheckLine>использовать черновик только как основу комментария</CheckLine>
+                  <CheckLine>
+                    проверить авторизацию и пустые состояния
+                  </CheckLine>
+                  <CheckLine>
+                    сравнить новый экран с предыдущим коммитом
+                  </CheckLine>
+                  <CheckLine>
+                    использовать черновик только как основу комментария
+                  </CheckLine>
                 </div>
               </section>
 
               <section className="lg:border-l lg:border-[#ebeae7] lg:pl-8">
                 <div className="flex items-center gap-3">
-                  <MessageSquare size={18} aria-hidden="true" className="text-[#4f89c7]" />
-                  <h3 className="text-lg font-semibold">Комментарии преподавателя</h3>
+                  <MessageSquare
+                    size={18}
+                    aria-hidden="true"
+                    className="text-[#4f89c7]"
+                  />
+                  <h3 className="text-lg font-semibold">
+                    Комментарии преподавателя
+                  </h3>
                 </div>
                 <div className="mt-4 grid gap-4">
                   <p className="text-sm leading-6 text-neutral-600">
@@ -465,7 +697,14 @@ export function DesignMapPage() {
               compact
               title="Настройки и диагностика"
               subtitle="Служебная зона остается спокойной: статус, команда, короткое объяснение."
-              tool={<SoftChip icon={<Settings size={15} aria-hidden="true" />} tone="neutral">Локально</SoftChip>}
+              tool={
+                <SoftChip
+                  icon={<Settings size={15} aria-hidden="true" />}
+                  tone="neutral"
+                >
+                  Локально
+                </SoftChip>
+              }
             />
             <div className="mt-5 grid grid-cols-[1fr_1fr_0.8fr] gap-4 py-3 text-sm font-medium text-neutral-400 max-md:hidden">
               <span>Элемент</span>
@@ -478,7 +717,9 @@ export function DesignMapPage() {
                 className="grid gap-3 py-4 shadow-[0_-1px_0_rgba(0,0,0,0.06)] md:grid-cols-[1fr_1fr_0.8fr] md:items-center"
               >
                 <p className="font-medium">{row.name}</p>
-                <p className="break-all font-mono text-sm text-neutral-500">{row.value}</p>
+                <p className="break-all font-mono text-sm text-neutral-500">
+                  {row.value}
+                </p>
                 <StatusLabel tone={row.tone}>{row.status}</StatusLabel>
               </div>
             ))}
@@ -506,10 +747,16 @@ export function DesignMapPage() {
                 />
               </label>
               <div className="grid gap-3">
-                <NotificationStrip tone="green" icon={<CheckCircle2 size={18} aria-hidden="true" />}>
+                <NotificationStrip
+                  tone="green"
+                  icon={<CheckCircle2 size={18} aria-hidden="true" />}
+                >
                   Студент сохранен. Список обновлен.
                 </NotificationStrip>
-                <NotificationStrip tone="red" icon={<AlertCircle size={18} aria-hidden="true" />}>
+                <NotificationStrip
+                  tone="red"
+                  icon={<AlertCircle size={18} aria-hidden="true" />}
+                >
                   GitHub-ссылка должна выглядеть как ссылка на репозиторий.
                 </NotificationStrip>
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[#fff8f5] px-4 py-3 text-sm text-[#91311f]">
@@ -536,9 +783,13 @@ export function DesignMapPage() {
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {colorTokens.map((token) => (
                 <div key={token.name} className="flex items-center gap-3">
-                  <span className={`size-9 rounded-lg ${token.className} shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08)]`} />
+                  <span
+                    className={`size-9 rounded-lg ${token.className} shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08)]`}
+                  />
                   <span>
-                    <span className="block text-sm font-medium">{token.name}</span>
+                    <span className="block text-sm font-medium">
+                      {token.name}
+                    </span>
                     <span className="block text-xs text-neutral-400">
                       {token.value}
                     </span>
@@ -665,15 +916,11 @@ function NotificationStrip({
   );
 }
 
-function StatusLabel({
-  tone,
-  children,
-}: {
-  tone: Tone;
-  children: ReactNode;
-}) {
+function StatusLabel({ tone, children }: { tone: Tone; children: ReactNode }) {
   return (
-    <span className={`inline-flex items-center gap-2 text-sm font-medium ${getToneText(tone)}`}>
+    <span
+      className={`inline-flex items-center gap-2 text-sm font-medium ${getToneText(tone)}`}
+    >
       {getToneIcon(tone)}
       {children}
     </span>

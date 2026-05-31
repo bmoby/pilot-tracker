@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Database, Settings, UsersRound } from "lucide-react";
+import { Database, LogOut, Settings, UsersRound } from "lucide-react";
 import type { ReactNode } from "react";
+import { logoutAction } from "./auth-actions";
 
 type AppShellProps = {
   activeSection: "students" | "settings";
@@ -35,6 +36,15 @@ export function AppShell({ activeSection, children }: AppShellProps) {
               <Settings size={17} aria-hidden="true" />
               Настройки
             </NavLink>
+            <form action={logoutAction}>
+              <button
+                className="flex min-h-10 items-center gap-2 rounded-full bg-[#f7f7f5] px-4 text-sm font-medium text-neutral-600 transition hover:bg-[#f1f1ef] hover:text-neutral-950"
+                type="submit"
+              >
+                <LogOut size={17} aria-hidden="true" />
+                Выйти
+              </button>
+            </form>
           </nav>
         </div>
       </div>

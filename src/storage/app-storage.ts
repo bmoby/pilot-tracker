@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { z } from "zod";
 import {
   aiAnalysisJobsFileSchema,
@@ -98,12 +99,14 @@ export type AppStorageOptions = {
   projectRoot?: string;
   dataRoot?: "data";
   backend?: AppStorageBackend;
+  supabaseClient?: SupabaseClient;
 };
 
 export class AppStorage {
   private readonly projectRoot: string;
   private readonly dataRootName: "data";
   private readonly backend: AppStorageBackend;
+  private readonly supabaseClient: SupabaseClient | null;
   private supabaseStorage: SupabaseDataStorage | null = null;
   private writeQueue: Promise<void> = Promise.resolve();
 
@@ -111,6 +114,7 @@ export class AppStorage {
     this.projectRoot = options.projectRoot ?? process.cwd();
     this.dataRootName = options.dataRoot ?? "data";
     this.backend = options.backend ?? "local";
+    this.supabaseClient = options.supabaseClient ?? null;
   }
 
   get dataRootPath() {
@@ -320,6 +324,7 @@ export class AppStorage {
 
   private getSupabaseStorage(): SupabaseDataStorage {
     this.supabaseStorage ??= new SupabaseDataStorage({
+      client: this.supabaseClient ?? undefined,
       dataRootPath: this.dataRootPath,
     });
 
