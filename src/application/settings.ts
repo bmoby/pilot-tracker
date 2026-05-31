@@ -4,7 +4,7 @@ import type {
   PathDiagnostics,
   ToolAuthStatus,
 } from "@/domain/schemas";
-import { getDefaultStorage } from "@/storage/app-storage";
+import { getDefaultStorage, type AppStorage } from "@/storage/app-storage";
 import { StorageError } from "@/storage/storage-error";
 import {
   failure,
@@ -45,11 +45,10 @@ export type SettingsOverview = {
   }[];
 };
 
-export async function getSettingsOverview(): Promise<
-  AppResult<SettingsOverview>
-> {
+export async function getSettingsOverview(
+  storage: AppStorage = getDefaultStorage(),
+): Promise<AppResult<SettingsOverview>> {
   try {
-    const storage = getDefaultStorage();
     const data = await storage.load();
     const settings = data.settingsFile.settings;
 
@@ -112,7 +111,7 @@ function buildPathItems(settings: AppSettings): SettingsOverview["paths"] {
     },
     {
       key: "appData",
-      name: "JSON-данные",
+      name: "Локальные настройки",
       value: `${settings.dataRoot}/${settings.appDataPath}`,
       ...buildPathOverview(paths?.appData),
     },

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { createAuthenticatedAppStorage } from "@/auth/server";
 import {
   enqueueAiAnalysisJob,
   enqueueAiAnalysisJobsForLatestUpdates,
@@ -30,11 +31,20 @@ export type StudentActionState = {
 export async function createStudentAction(
   formData: FormData,
 ): Promise<StudentActionState> {
-  const result = await createStudent({
-    displayName: getFormString(formData, "displayName"),
-    notes: getFormString(formData, "notes"),
-    repositoryUrl: getFormString(formData, "repositoryUrl"),
-  });
+  const storage = await createAuthenticatedAppStorage();
+
+  if (!storage.ok) {
+    return toActionError(storage.error.message);
+  }
+
+  const result = await createStudent(
+    {
+      displayName: getFormString(formData, "displayName"),
+      notes: getFormString(formData, "notes"),
+      repositoryUrl: getFormString(formData, "repositoryUrl"),
+    },
+    storage.value,
+  );
 
   if (!result.ok) {
     return {
@@ -54,12 +64,21 @@ export async function createStudentAction(
 export async function updateStudentAction(
   formData: FormData,
 ): Promise<StudentActionState> {
-  const result = await updateStudent({
-    studentId: getFormString(formData, "studentId"),
-    displayName: getFormString(formData, "displayName"),
-    notes: getFormString(formData, "notes"),
-    repositoryUrl: getFormString(formData, "repositoryUrl"),
-  });
+  const storage = await createAuthenticatedAppStorage();
+
+  if (!storage.ok) {
+    return toActionError(storage.error.message);
+  }
+
+  const result = await updateStudent(
+    {
+      studentId: getFormString(formData, "studentId"),
+      displayName: getFormString(formData, "displayName"),
+      notes: getFormString(formData, "notes"),
+      repositoryUrl: getFormString(formData, "repositoryUrl"),
+    },
+    storage.value,
+  );
 
   if (!result.ok) {
     return {
@@ -79,10 +98,19 @@ export async function updateStudentAction(
 export async function deleteStudentAction(
   formData: FormData,
 ): Promise<StudentActionState> {
-  const result = await deleteStudent({
-    studentId: getFormString(formData, "studentId"),
-    confirmed: getFormString(formData, "confirmed") === "true",
-  });
+  const storage = await createAuthenticatedAppStorage();
+
+  if (!storage.ok) {
+    return toActionError(storage.error.message);
+  }
+
+  const result = await deleteStudent(
+    {
+      studentId: getFormString(formData, "studentId"),
+      confirmed: getFormString(formData, "confirmed") === "true",
+    },
+    storage.value,
+  );
 
   if (!result.ok) {
     return {
@@ -100,7 +128,13 @@ export async function deleteStudentAction(
 }
 
 export async function updateAllProjectsAction(): Promise<StudentActionState> {
-  const result = await updateAllProjects();
+  const storage = await createAuthenticatedAppStorage();
+
+  if (!storage.ok) {
+    return toActionError(storage.error.message);
+  }
+
+  const result = await updateAllProjects(storage.value);
 
   if (!result.ok) {
     return {
@@ -121,7 +155,13 @@ export async function updateSingleProjectAction(
   formData: FormData,
 ): Promise<StudentActionState> {
   const studentId = getFormString(formData, "studentId");
-  const result = await updateSingleProject(studentId);
+  const storage = await createAuthenticatedAppStorage();
+
+  if (!storage.ok) {
+    return toActionError(storage.error.message);
+  }
+
+  const result = await updateSingleProject(studentId, storage.value);
 
   if (!result.ok) {
     return {
@@ -143,11 +183,20 @@ export async function addReviewCommentAction(
   formData: FormData,
 ): Promise<StudentActionState> {
   const studentId = getFormString(formData, "studentId");
-  const result = await addReviewComment({
-    updateEventId: getFormString(formData, "updateEventId"),
-    text: getFormString(formData, "text"),
-    basedOnAiReportId: getFormString(formData, "basedOnAiReportId"),
-  });
+  const storage = await createAuthenticatedAppStorage();
+
+  if (!storage.ok) {
+    return toActionError(storage.error.message);
+  }
+
+  const result = await addReviewComment(
+    {
+      updateEventId: getFormString(formData, "updateEventId"),
+      text: getFormString(formData, "text"),
+      basedOnAiReportId: getFormString(formData, "basedOnAiReportId"),
+    },
+    storage.value,
+  );
 
   if (!result.ok) {
     return {
@@ -169,10 +218,19 @@ export async function updateReviewCommentAction(
   formData: FormData,
 ): Promise<StudentActionState> {
   const studentId = getFormString(formData, "studentId");
-  const result = await updateReviewComment({
-    commentId: getFormString(formData, "commentId"),
-    text: getFormString(formData, "text"),
-  });
+  const storage = await createAuthenticatedAppStorage();
+
+  if (!storage.ok) {
+    return toActionError(storage.error.message);
+  }
+
+  const result = await updateReviewComment(
+    {
+      commentId: getFormString(formData, "commentId"),
+      text: getFormString(formData, "text"),
+    },
+    storage.value,
+  );
 
   if (!result.ok) {
     return {
@@ -194,10 +252,19 @@ export async function deleteReviewCommentAction(
   formData: FormData,
 ): Promise<StudentActionState> {
   const studentId = getFormString(formData, "studentId");
-  const result = await deleteReviewComment({
-    commentId: getFormString(formData, "commentId"),
-    confirmed: getFormString(formData, "confirmed") === "true",
-  });
+  const storage = await createAuthenticatedAppStorage();
+
+  if (!storage.ok) {
+    return toActionError(storage.error.message);
+  }
+
+  const result = await deleteReviewComment(
+    {
+      commentId: getFormString(formData, "commentId"),
+      confirmed: getFormString(formData, "confirmed") === "true",
+    },
+    storage.value,
+  );
 
   if (!result.ok) {
     return {
@@ -219,10 +286,19 @@ export async function updateReviewStatusAction(
   formData: FormData,
 ): Promise<StudentActionState> {
   const studentId = getFormString(formData, "studentId");
-  const result = await updateReviewStatus({
-    updateEventId: getFormString(formData, "updateEventId"),
-    status: getFormString(formData, "status"),
-  });
+  const storage = await createAuthenticatedAppStorage();
+
+  if (!storage.ok) {
+    return toActionError(storage.error.message);
+  }
+
+  const result = await updateReviewStatus(
+    {
+      updateEventId: getFormString(formData, "updateEventId"),
+      status: getFormString(formData, "status"),
+    },
+    storage.value,
+  );
 
   if (!result.ok) {
     return {
@@ -244,9 +320,18 @@ export async function openUpdateCodeAction(
   formData: FormData,
 ): Promise<StudentActionState> {
   const studentId = getFormString(formData, "studentId");
-  const result = await openUpdateCodeInVsCode({
-    updateEventId: getFormString(formData, "updateEventId"),
-  });
+  const storage = await createAuthenticatedAppStorage();
+
+  if (!storage.ok) {
+    return toActionError(storage.error.message);
+  }
+
+  const result = await openUpdateCodeInVsCode(
+    {
+      updateEventId: getFormString(formData, "updateEventId"),
+    },
+    storage.value,
+  );
 
   if (!result.ok) {
     return {
@@ -269,9 +354,18 @@ export async function runAiAnalysisAction(
   formData: FormData,
 ): Promise<StudentActionState> {
   const studentId = getFormString(formData, "studentId");
-  const result = await enqueueAiAnalysisJob({
-    updateEventId: getFormString(formData, "updateEventId"),
-  });
+  const storage = await createAuthenticatedAppStorage();
+
+  if (!storage.ok) {
+    return toActionError(storage.error.message);
+  }
+
+  const result = await enqueueAiAnalysisJob(
+    {
+      updateEventId: getFormString(formData, "updateEventId"),
+    },
+    storage.value,
+  );
 
   if (!result.ok) {
     return {
@@ -292,7 +386,13 @@ export async function runAiAnalysisAction(
 }
 
 export async function enqueueLatestAiAnalysesAction(): Promise<StudentActionState> {
-  const result = await enqueueAiAnalysisJobsForLatestUpdates();
+  const storage = await createAuthenticatedAppStorage();
+
+  if (!storage.ok) {
+    return toActionError(storage.error.message);
+  }
+
+  const result = await enqueueAiAnalysisJobsForLatestUpdates(storage.value);
 
   if (!result.ok) {
     return {
@@ -316,6 +416,13 @@ export async function enqueueLatestAiAnalysesAction(): Promise<StudentActionStat
 function getFormString(formData: FormData, key: string): string {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
+}
+
+function toActionError(message: string): StudentActionState {
+  return {
+    ok: false,
+    message,
+  };
 }
 
 function buildUpdateMessage(summary: {

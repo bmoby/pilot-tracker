@@ -1,4 +1,5 @@
 import { getSettingsOverview } from "@/application/settings";
+import { createAuthenticatedAppStorage, redirectToLogin } from "@/auth/server";
 import { AppShell } from "@/ui/app-shell";
 import { SettingsPage as SettingsOverviewPage } from "@/ui/settings-page";
 
@@ -6,7 +7,13 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export default async function SettingsRoute() {
-  const result = await getSettingsOverview();
+  const storage = await createAuthenticatedAppStorage();
+
+  if (!storage.ok) {
+    redirectToLogin(storage.error.code, "/settings");
+  }
+
+  const result = await getSettingsOverview(storage.value);
 
   if (!result.ok) {
     return (

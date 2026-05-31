@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { runEnvironmentDiagnostics } from "@/application/environment-diagnostics";
+import { createAuthenticatedAppStorage } from "@/auth/server";
 
 export type SettingsActionState = {
   ok: boolean;
@@ -9,7 +10,16 @@ export type SettingsActionState = {
 };
 
 export async function runEnvironmentDiagnosticsAction(): Promise<SettingsActionState> {
-  const result = await runEnvironmentDiagnostics();
+  const storage = await createAuthenticatedAppStorage();
+
+  if (!storage.ok) {
+    return {
+      ok: false,
+      message: storage.error.message,
+    };
+  }
+
+  const result = await runEnvironmentDiagnostics({ storage: storage.value });
 
   if (!result.ok) {
     return {
